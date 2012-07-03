@@ -2,6 +2,7 @@
 #include <msp430x22x2.h>
 //#include "can.h"
 //#include "can_data.h"
+//https://github.com/davidebids/uwfh_shifter.git
 
 #include "main.h"
 
@@ -61,7 +62,7 @@ void clock_init (void)
 void actuate_clutch(void)
 {
 	if (clutch_state == 1) {
-		while (clutch_posn < 5) { //update position with legitimate value
+		while (clutch_posn < 5) { //update position with legitimate value - only move clutch as much as needed for the shift, smallest amount for quickest shift
 			TBCCR1 = 512; //DIR_FORWARD
 		}
 	}
@@ -72,7 +73,7 @@ void actuate_clutch(void)
 	}
 }
 
-void ignition_cut (void)
+void ignition_cut (void) //required to upshift to neutral?
 {
 	if (ign_cut == 1) {
 		//turn on LED
@@ -87,12 +88,33 @@ void shift_gear (void)
 	//gear_status = 1 (upshift), gear_status = 2 (downshift), gear_status = 3 (neutral - half shift)
 
 	if (gear_status == 1) {
+
+		ign_cut = 1;
+		ignition_cut();
+
 		while (shift_posn < 5) { //update value corresponding to actuator position, PWM DIR_FORWARD
+			TBCCR1 = 512; //feedback from pot
+		}
+
+		ign_cut = 0;
+		ignition_cut();
+
+		while (shift_posn > 0) { //update value corresponding to actuator position, PWM DIR_REVERSE
 			TBCCR1 = 512; //feedback from pot
 		}
 	}
 	else if (gear_status == 2) {
+		clutch_state = 1;
+		actuate_clutch();
+
 		while (shift_posn > 5) { //update value corresponding to actuator position, PWM DIR_REVERSE
+			TBCCR1 = 512;
+		}
+
+		clutch_state = 0;
+		actuate_clutch();
+
+		while (shift_posn < 3) { //update value corresponding to actuator position, PWM DIR_FORWARD - back to rest position
 			TBCCR1 = 512;
 		}
 	}
@@ -105,7 +127,17 @@ void shift_gear (void)
 		}
 		else if (gear_num == 2)
 		{
+	    	clutch_state = 1;
+	    	actuate_clutch();
+
 			while (shift_posn > 3) { //update value corresponding to position, PWM DIR_REVERSE
+				TBCCR1 = 512;
+			}
+
+	    	clutch_state = 0;
+	    	actuate_clutch();
+
+			while (shift_posn < 1) { //update value corresponding to actuator position, PWM DIR_FORWARD - back to rest position
 				TBCCR1 = 512;
 			}
 		}
@@ -154,12 +186,12 @@ void main(void)
         {
         	shift_state = STATE_DOWNSHIFT;
         }
-        else if (IO_SW0) //clutch paddle engaged
+        else if (IO_SW0) //clutch paddle engaged -- replace this with ISR?
         {
         	clutch_state = 1;
         	actuate_clutch();
         }
-		else if (IO_SW0) //clutch paddle disengaged
+		else if (IO_SW0) //clutch paddle disengaged -- replace this with ISR?
 		{
 			clutch_state = 0;
 			actuate_clutch();
@@ -175,15 +207,8 @@ void main(void)
     {
     	if (prev_state == STATE_IDLE)
     	{
-            ign_cut = 1;
-            ignition_cut();
-
             gear_status = 1;
             shift_gear();
-
-        	ign_cut = 0;
-        	ignition_cut();
-
         	gear_num++;
         	prev_state = STATE_UPSHIFT;
         	shift_state = STATE_IDLE;
@@ -198,14 +223,8 @@ void main(void)
     {
     	if (prev_state == STATE_IDLE)
     		{
-    			clutch_state = 1;
-    			actuate_clutch();
-
     			gear_status = 2;
     			shift_gear();
-
-    			clutch_state = 0;
-    			actuate_clutch();
 
     			if (gear_num <= 1) {
     				gear_num = 1;
@@ -241,27 +260,14 @@ void main(void)
     }
     else if (shift_state == STATE_NEUTRAL_FROM_FIRST)
     {
-    	ign_cut = 1; //required for upshift to neutral?
-    	ignition_cut();
-
     	gear_status = 3;
     	shift_gear();
-
-    	ign_cut = 0;
-    	ignition_cut();
-
     	shift_state = STATE_NEUTRAL;
     }
     else if (shift_state == STATE_NEUTRAL_FROM_SECOND)
     {
-    	clutch_state = 1;
-    	actuate_clutch();
-
     	gear_status = 3;
     	shift_gear();
-
-    	clutch_state = 0;
-    	actuate_clutch();
     	gear_num--;
     	shift_state = STATE_NEUTRAL;
     }
@@ -288,6 +294,13 @@ __interrupt void Timer_A (void)
 __interrupt void Timer_B (void)
 {
   //P4OUT ^=  PIN4;
+}
+
+//#pragma vector=SOME_PIN_VECTOR
+__interrupt void clutch_control (void)
+{
+	//insert scaling for paddle potentiometer to clutch actuator here - full control of clutch
+	//add vector enable interrupt - eg. TBIE in main()
 }
 
 // Initialize TimerA to wake up processor at 2kHz
