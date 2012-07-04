@@ -25,10 +25,14 @@
 //Variable Declarations
 //
 long double shift_posn, clutch_posn;
+long double up_posn = 5; //Position in Volts
+long double down_posn = 3; //Position in Volts
+long double rest_posn = 1; //Position in Volts
+long double neutral_posn = 2; //Position in Volts
+long double clutch_engaged = 5; //Position in Volts
 unsigned char clutch_state, shift_state, prev_state, ign_cut, gear_status;
 int gear_num;
 unsigned char man_dir, man_mode;
-//unsigned char up_conf, down_conf, neutral_conf -- for when there is a sensor to get feedback confirmation from
 
 //
 // Function Declarations
@@ -62,13 +66,13 @@ void clock_init (void)
 void actuate_clutch(void)
 {
 	if (clutch_state == 1) {
-		while (clutch_posn < 5) { //update position with legitimate value - only move clutch as much as needed for the shift, smallest amount for quickest shift
+		while (clutch_posn < clutch_engaged) { //update position with legitimate value - only move clutch as much as needed for the shift, smallest amount for quickest shift
 			TBCCR1 = 512; //DIR_FORWARD
 		}
 	}
 	else if (clutch_state == 0) {
-		while (clutch_posn > 5) {
-			TBCCR1 = 512; //DIR_REVERSE
+		while (clutch_posn > clutch_engaged) {
+			TBCCR1 = 512; //DIR_REVERSE - disengage clutch
 		}
 	}
 }
@@ -92,14 +96,14 @@ void shift_gear (void)
 		ign_cut = 1;
 		ignition_cut();
 
-		while (shift_posn < 5) { //update value corresponding to actuator position, PWM DIR_FORWARD
+		while (shift_posn < up_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
 			TBCCR1 = 512; //feedback from pot
 		}
 
 		ign_cut = 0;
 		ignition_cut();
 
-		while (shift_posn > 0) { //update value corresponding to actuator position, PWM DIR_REVERSE
+		while (shift_posn > rest_posn) { //update value corresponding to actuator position, PWM DIR_REVERSE
 			TBCCR1 = 512; //feedback from pot
 		}
 	}
@@ -107,21 +111,21 @@ void shift_gear (void)
 		clutch_state = 1;
 		actuate_clutch();
 
-		while (shift_posn > 5) { //update value corresponding to actuator position, PWM DIR_REVERSE
+		while (shift_posn > down_posn) { //update value corresponding to actuator position, PWM DIR_REVERSE
 			TBCCR1 = 512;
 		}
 
 		clutch_state = 0;
 		actuate_clutch();
 
-		while (shift_posn < 3) { //update value corresponding to actuator position, PWM DIR_FORWARD - back to rest position
+		while (shift_posn < rest_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD - back to rest position
 			TBCCR1 = 512;
 		}
 	}
 	else if (gear_status == 3) {
 		if (gear_num == 1)
 		{
-			while (shift_posn < 3) { //update value corresponding to position, PWM DIR_FORWARD
+			while (shift_posn < neutral_posn) { //update value corresponding to position, PWM DIR_FORWARD
 				TBCCR1 = 512;
 			}
 		}
@@ -130,14 +134,14 @@ void shift_gear (void)
 	    	clutch_state = 1;
 	    	actuate_clutch();
 
-			while (shift_posn > 3) { //update value corresponding to position, PWM DIR_REVERSE
+			while (shift_posn > neutral_posn) { //update value corresponding to position, PWM DIR_REVERSE
 				TBCCR1 = 512;
 			}
 
 	    	clutch_state = 0;
 	    	actuate_clutch();
 
-			while (shift_posn < 1) { //update value corresponding to actuator position, PWM DIR_FORWARD - back to rest position
+			while (shift_posn < rest_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
 				TBCCR1 = 512;
 			}
 		}
