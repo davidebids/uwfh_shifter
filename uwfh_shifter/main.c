@@ -44,15 +44,19 @@ void timer_init(void);
 //
 void initPortPins(void)
 {
-  P1DIR = 0xFF;								// no inputs needed
-  P2DIR = ~(PIN2+PIN1);                		// Set P2.2,1 as input
-  P3DIR = ~(PIN5+PIN2);							// Set P3.5,2 as an input
+
+  P1OUT = 0;								//Initial value of 0
+  P1DIR = PIN4;								//Set P1.4 as output
+
+  P2DIR = ~(PIN2+PIN1);                		//Set P2.2,1 as input
+
+  P3OUT = 0;								//Initial value of 0
+  P3DIR = ~(PIN5+PIN2);						//Set P3.5,2 as an input
+  P3DIR = PIN6;								//Set P3.6 as output
+  P3SEL = PIN1 + PIN2 + PIN3;
 
   P4DIR = (char)~(0x82); //~(PIN7+PIN1);						// Set P4.7,1 as input
   P4SEL = PIN4 + PIN5;
-
-  P3SEL = PIN1 + PIN2 + PIN3;
-  P3OUT = 0x00;
 }
 
 void clock_init (void)
@@ -77,13 +81,13 @@ void actuate_clutch(void)
 	}
 }
 
-void ignition_cut (void) //required to upshift to neutral?
+void ignition_cut (void) //P3.6
 {
 	if (ign_cut == 1) {
-		//turn on LED
+		P3OUT |= PIN6;			//turn on LED
 	}
 	else if (ign_cut == 0) {
-		//turn off LED
+		P3OUT &= ~PIN6;			//turn off LED
 	}
 }
 
@@ -300,7 +304,7 @@ __interrupt void Timer_B (void)
   //P4OUT ^=  PIN4;
 }
 
-//#pragma vector=SOME_PIN_VECTOR
+#pragma vector=PORT2_VECTOR
 __interrupt void clutch_control (void)
 {
 	//insert scaling for paddle potentiometer to clutch actuator here - full control of clutch
