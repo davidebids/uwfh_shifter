@@ -30,7 +30,7 @@ long double down_posn = 3; //Position in Volts
 long double rest_posn = 1; //Position in Volts
 long double neutral_posn = 2; //Position in Volts
 long double clutch_engaged = 5; //Position in Volts
-unsigned char clutch_state, shift_state, prev_state, ign_cut, gear_status;
+unsigned char clutch_state, shift_state, prev_state, ign_cut, gear_status, in_neutral;
 int gear_num;
 unsigned char man_dir, man_mode;
 
@@ -71,12 +71,14 @@ void actuate_clutch(void)
 {
 	if (clutch_state == 1) {
 		while (clutch_posn < clutch_engaged) { //update position with legitimate value - only move clutch as much as needed for the shift, smallest amount for quickest shift
-			TBCCR1 = 512; //DIR_FORWARD
+			TBCCR1 = 512;
+			//SOME_PIN = DIR_FORWARD;
 		}
 	}
 	else if (clutch_state == 0) {
 		while (clutch_posn > clutch_engaged) {
-			TBCCR1 = 512; //DIR_REVERSE - disengage clutch
+			TBCCR1 = 512;
+			//SOME PIN = DIR_REVERSE - disengage clutch
 		}
 	}
 }
@@ -91,7 +93,7 @@ void ignition_cut (void) //P3.6
 	}
 }
 
-void gear_indication (void)
+void gear_indication (void) //P1.1, 1.2, 1.3
 {
 	if (gear_num == 1) {
 		P1OUT |= PIN1;
@@ -120,22 +122,27 @@ void shift_gear (void)
 {
 	//gear_status = 1 (upshift), gear_status = 2 (downshift), gear_status = 3 (neutral - half shift)
 
-	if (gear_status == 1) {
-		ign_cut = 1;
-		ignition_cut();
+	if (gear_status == 1) { //upshift from neutral - or will regular upshift work?
+
+		if (in_neutral != 1) {
+			ign_cut = 1;
+			ignition_cut();
+		}
 
 		while (shift_posn < up_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
 			TBCCR1 = 512; //feedback from pot
 		}
 
-		ign_cut = 0;
-		ignition_cut();
+		if (in_neutral != 1) {
+			ign_cut = 0;
+			ignition_cut();
+		}
 
 		while (shift_posn > rest_posn) { //update value corresponding to actuator position, PWM DIR_REVERSE
 			TBCCR1 = 512; //feedback from pot
 		}
 	}
-	else if (gear_status == 2) {
+	else if (gear_status == 2) { //downshift from neutral - or will regular downshift work?
 		clutch_state = 1;
 		actuate_clutch();
 
@@ -218,16 +225,6 @@ void main(void)
         {
         	shift_state = STATE_DOWNSHIFT;
         }
-        /*else if (IO_SW0) //clutch paddle engaged -- replace this with ISR?
-        {
-        	clutch_state = 1;
-        	actuate_clutch();
-        }
-		else if (IO_SW0) //clutch paddle disengaged -- replace this with ISR?
-		{
-			clutch_state = 0;
-			actuate_clutch();
-        }*/
     	else if (IO_SW0 && prev_state != STATE_NEUTRAL) //neutral button pressed
     	{
     		shift_state = STATE_GEAR_CHECK;
@@ -241,6 +238,7 @@ void main(void)
     	{
             gear_status = 1;
             shift_gear();
+            in_neutral = 0;
         	gear_num++;
         	gear_indication();
         	prev_state = STATE_UPSHIFT;
@@ -250,7 +248,6 @@ void main(void)
     	{
     		//add code
     	}
-
     }
     else if (shift_state == STATE_DOWNSHIFT)
     {
@@ -258,6 +255,7 @@ void main(void)
     		{
     			gear_status = 2;
     			shift_gear();
+    			in_neutral = 0;
 
     			if (gear_num <= 1) {
     				gear_num = 1;
@@ -311,6 +309,7 @@ void main(void)
     	gear_indication();
     	prev_state = STATE_NEUTRAL;
 		shift_state = STATE_IDLE;
+		in_neutral = 1;
     }
     //else - what - throw exception, reset? -- display N/A as gear indication, cause driver to downshift a bunch of times to reset to first gear -- used for when the car shuts off eg. from BRB
   }
