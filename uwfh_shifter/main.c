@@ -31,7 +31,7 @@ long double rest_posn = 1; //Position in Volts
 long double neutral_posn = 2; //Position in Volts
 long double clutch_engaged = 5; //Position in Volts
 unsigned char clutch_state, shift_state, prev_state, ign_cut, gear_status, in_neutral;
-int gear_num;
+unsigned int gear_num;
 unsigned char man_dir, man_mode;
 
 //
