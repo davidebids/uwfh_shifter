@@ -44,13 +44,18 @@ void timer_init(void);
 //
 void initPortPins(void)
 {
+	P1OUT = 0;
+	P2OUT = 0;
+	P3OUT = 0;
+	P4OUT = 0;
+
 	//Digital Outputs
 	P2DIR = PIN1;
 	P3DIR = PIN1 + PIN2 + PIN3 + PIN4 + PIN5;
 	P4DIR = PIN2 + PIN7;
 
 	//Digital Inputs
-	P1DIR = ~(PIN1 + PIN2 + PIN3);
+	//P1DIR = ~(PIN1 + PIN2 + PIN3);
 
 	//Analog Inputs
 	P4DIR = ~(PIN5 + PIN6);
@@ -95,22 +100,29 @@ void ignition_cut (void) //P2.1
 
 void gear_indication (void) //P3.4, 3.5, 4.7
 {
-	if (gear_num == 1) {
+	if (gear_num == 1 && shift_state != STATE_NEUTRAL) {
 		P4OUT |= PIN7;
+		P3OUT &= ~(PIN4 + PIN5);
 	}
-	else if (gear_num == 2) {
+	else if (gear_num == 2 && shift_state != STATE_NEUTRAL) {
 		P3OUT |= PIN4;
+		P3OUT &= ~PIN5;
+		P4OUT &= ~PIN7;
 	}
-	else if (gear_num == 3) {
+	else if (gear_num == 3 && shift_state != STATE_NEUTRAL) {
 		P3OUT |= PIN4;
 		P4OUT |= PIN7;
+		P3OUT &= ~PIN5;
 	}
-	else if (gear_num == 4) {
+	else if (gear_num == 4 && shift_state != STATE_NEUTRAL) {
 		P3OUT |= PIN5;
+		P3OUT &= ~PIN4;
+		P4OUT &= ~PIN7;
 	}
-	else if (gear_num == 5) {
+	else if (gear_num == 5 && shift_state != STATE_NEUTRAL) {
 		P3OUT |= PIN5;
 		P4OUT |= PIN7;
+		P3OUT &= ~PIN4;
 	}
 	else if (shift_state == STATE_NEUTRAL) {
 		P3OUT |= PIN4 + PIN5;
@@ -208,6 +220,7 @@ void main(void)
   initPortPins();                           // Initialize port pins
   timer_init();
   gear_indication();
+  ign_cut = 0;
 
 //  spi_init();
 //  can_init(CAN_BITRATE_250);
@@ -222,15 +235,19 @@ void main(void)
 
     if (shift_state == STATE_IDLE)
     {
-    	if (IO_SW0 && gear_num < 5) //upshift button pressed -- steering wheel button press code goes here
+    	if (((P1IN & PIN1) != PIN1) && gear_num < 5) //upshift button pressed -- steering wheel button press code goes here
         {
-            shift_state = STATE_UPSHIFT;
+    		shift_state = STATE_UPSHIFT;
         }
-        else if (IO_SW0 && gear_num > 1) //downshift button pressed
+        else if (((P1IN & PIN2) != PIN2) && gear_num >= 1) //downshift button pressed
         {
         	shift_state = STATE_DOWNSHIFT;
         }
-    	else if (IO_SW0 && prev_state != STATE_NEUTRAL) //neutral button pressed
+        else if (((P1IN & PIN2) != PIN2) && prev_state == STATE_NEUTRAL)
+        {
+        	shift_state = STATE_DOWNSHIFT;
+        }
+    	else if (((P1IN & PIN3) != PIN3) && prev_state != STATE_NEUTRAL) //neutral button pressed
     	{
     		shift_state = STATE_GEAR_CHECK;
     	}
@@ -239,73 +256,64 @@ void main(void)
     }
     else if (shift_state == STATE_UPSHIFT)
     {
-    	if (prev_state == STATE_IDLE)
-    	{
-            gear_status = 1;
-            shift_gear();
-            in_neutral = 0;
-        	gear_num++;
-        	gear_indication();
-        	prev_state = STATE_UPSHIFT;
-        	shift_state = STATE_IDLE;
-    	}
-    	else if (prev_state == STATE_MANUAL_IDLE)
-    	{
-    		//add code
-    	}
+	   /* gear_status = 1;
+		shift_gear();*/
+		//in_neutral = 0;
+
+    	gear_indication();
+
+    	while ((P1IN & PIN1) != PIN1);
+
+		gear_num++;
+		gear_indication();
+
+		prev_state = STATE_UPSHIFT;
+		shift_state = STATE_IDLE;
     }
     else if (shift_state == STATE_DOWNSHIFT)
     {
-    	if (prev_state == STATE_IDLE)
-    		{
-    			gear_status = 2;
-    			shift_gear();
-    			in_neutral = 0;
+		/*gear_status = 2;
+		shift_gear();*/
+		//in_neutral = 0;
 
-    			if (gear_num <= 1) {
-    				gear_num = 1;
-    				gear_indication();
-    			}
-    			else {
-        			gear_num--;
-        			gear_indication();
-    			}
+    	gear_indication();
 
-    			shift_state = STATE_IDLE;
-    		}
-    		else if (prev_state == STATE_MANUAL_IDLE)
-    		{
-    			//add code
-    		}
-    }
-    else if (shift_state == STATE_MANUAL_IDLE) //add code
-    {
-    	/*prev_state = STATE_MANUAL_IDLE;
-    	shift_state = STATE_UPSHIFT;
-    	shift_state = STATE_DOWNSHIFT;*/
+		if (gear_num <= 1) {
+			gear_num = 1;
+			gear_indication();
+		}
+		else {
+			gear_num--;
+			gear_indication();
+		}
+
+		while ((P1IN & PIN2) != PIN2);
+		shift_state = STATE_IDLE;
     }
     else if (shift_state == STATE_GEAR_CHECK)
     {
-		if (gear_num != 1 || gear_num != 2) {
-			shift_state = STATE_IDLE;
-		}
-		else if (gear_num == 1) {
+		while ((P1IN & PIN3) != PIN3);
+
+    	if (gear_num == 1) {
 			shift_state = STATE_NEUTRAL_FROM_FIRST;
 		}
 		else if (gear_num == 2) {
 			shift_state = STATE_NEUTRAL_FROM_SECOND;
 		}
+		else {
+			shift_state = STATE_IDLE;
+		}
     }
     else if (shift_state == STATE_NEUTRAL_FROM_FIRST)
     {
-    	gear_status = 3;
-    	shift_gear();
+    	/*gear_status = 3;
+    	shift_gear();*/
     	shift_state = STATE_NEUTRAL;
     }
     else if (shift_state == STATE_NEUTRAL_FROM_SECOND)
     {
-    	gear_status = 3;
-    	shift_gear();
+    	/*gear_status = 3;
+    	shift_gear();*/
     	gear_num--;
     	shift_state = STATE_NEUTRAL;
     }
@@ -314,7 +322,7 @@ void main(void)
     	gear_indication();
     	prev_state = STATE_NEUTRAL;
 		shift_state = STATE_IDLE;
-		in_neutral = 1;
+		//in_neutral = 1;
     }
     //else - what - throw exception, reset? -- display N/A as gear indication, cause driver to downshift a bunch of times to reset to first gear -- used for when the car shuts off eg. from BRB
   }
@@ -336,12 +344,12 @@ __interrupt void Timer_B (void)
   //P4OUT ^=  PIN4;
 }
 
-#pragma vector=PORT2_VECTOR //change vector?
+/*#pragma vector=PORT2_VECTOR //change vector!
 __interrupt void clutch_control (void)
 {
 	//insert scaling for paddle potentiometer to clutch actuator here - full control of clutch
 	//add vector enable interrupt - eg. TBIE in main()
-}
+}*/
 
 // Initialize TimerA to wake up processor at 2kHz
 void timer_init(void)
