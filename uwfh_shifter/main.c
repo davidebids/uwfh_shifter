@@ -44,19 +44,19 @@ void timer_init(void);
 //
 void initPortPins(void)
 {
-  //P1DIR = 0xFF;								//no inputs needed
-  P2DIR = ~(PIN2+PIN1);                		//Set P2.2,1 as input
+	//Digital Outputs
+	P2DIR = PIN1;
+	P3DIR = PIN1 + PIN2 + PIN3 + PIN4 + PIN5;
+	P4DIR = PIN2 + PIN7;
 
-  P3OUT = 0;								//Initial value of 0
-  P3DIR = PIN6;								//Set P3.6 as output
-  P3DIR = ~(PIN5+PIN2);						//Set P3.5,2 as an input
-  P3SEL = PIN1 + PIN2 + PIN3;				//For SPI
+	//Digital Inputs
+	P1DIR = ~(PIN1 + PIN2 + PIN3);
 
-  P4DIR = (char)~(0x82); //~(PIN7+PIN1);						// Set P4.7,1 as input
-  P4SEL = PIN4 + PIN5;
+	//Analog Inputs
+	P4DIR = ~(PIN5 + PIN6);
+	P2DIR = ~PIN2;
 
-  P1OUT = 0;
-  P1DIR = PIN1 + PIN2 + PIN3;
+	//P3SEL = PIN1 + PIN2 + PIN3;				//For SPI
 }
 
 void clock_init (void)
@@ -83,38 +83,42 @@ void actuate_clutch(void)
 	}
 }
 
-void ignition_cut (void) //P3.6
+void ignition_cut (void) //P2.1
 {
 	if (ign_cut == 1) {
-		P3OUT |= PIN6;			//turn on LED
+		P2OUT |= PIN1;			//turn on LED
 	}
 	else if (ign_cut == 0) {
-		P3OUT &= ~PIN6;			//turn off LED
+		P2OUT &= ~PIN1;			//turn off LED
 	}
 }
 
-void gear_indication (void) //P1.1, 1.2, 1.3
+void gear_indication (void) //P3.4, 3.5, 4.7
 {
 	if (gear_num == 1) {
-		P1OUT |= PIN1;
+		P4OUT |= PIN7;
 	}
 	else if (gear_num == 2) {
-		P1OUT |= PIN2;
+		P3OUT |= PIN4;
 	}
 	else if (gear_num == 3) {
-		P1OUT |= PIN2 + PIN1;
+		P3OUT |= PIN4;
+		P4OUT |= PIN7;
 	}
 	else if (gear_num == 4) {
-		P1OUT |= PIN3;
+		P3OUT |= PIN5;
 	}
 	else if (gear_num == 5) {
-		P1OUT |= PIN3 + PIN1;
+		P3OUT |= PIN5;
+		P4OUT |= PIN7;
 	}
 	else if (shift_state == STATE_NEUTRAL) {
-		P1OUT |= PIN1 + PIN2 + PIN3;
+		P3OUT |= PIN4 + PIN5;
+		P4OUT |= PIN7;
 	}
 	else {
-		P1OUT &= ~(PIN1 + PIN2 + PIN3);
+		P3OUT &= ~(PIN4 + PIN5);
+		P4OUT &= ~PIN7;
 	}
 }
 
@@ -122,7 +126,7 @@ void shift_gear (void)
 {
 	//gear_status = 1 (upshift), gear_status = 2 (downshift), gear_status = 3 (neutral - half shift)
 
-	if (gear_status == 1) { //upshift from neutral - or will regular upshift work?
+	if (gear_status == 1) {
 
 		if (in_neutral != 1) {
 			ign_cut = 1;
@@ -142,7 +146,7 @@ void shift_gear (void)
 			TBCCR1 = 512; //feedback from pot
 		}
 	}
-	else if (gear_status == 2) { //downshift from neutral - or will regular downshift work?
+	else if (gear_status == 2) {
 		clutch_state = 1;
 		actuate_clutch();
 
@@ -166,7 +170,7 @@ void shift_gear (void)
 		}
 		else if (gear_num == 2)
 		{
-	    	clutch_state = 1; //remove these?
+	    	clutch_state = 1;
 	    	actuate_clutch();
 
 			while (shift_posn > neutral_posn) { //update value corresponding to position, PWM DIR_REVERSE
@@ -186,7 +190,7 @@ void shift_gear (void)
 void main(void)
 {
 	unsigned int i;
-	gear_num = 0;
+	gear_num = 1;
 	shift_state = STATE_IDLE;
 	prev_state = STATE_IDLE;
 
@@ -203,6 +207,7 @@ void main(void)
 
   initPortPins();                           // Initialize port pins
   timer_init();
+  gear_indication();
 
 //  spi_init();
 //  can_init(CAN_BITRATE_250);
@@ -217,7 +222,7 @@ void main(void)
 
     if (shift_state == STATE_IDLE)
     {
-    	if (IO_SW0 && gear_num < 5) //upshift button pressed
+    	if (IO_SW0 && gear_num < 5) //upshift button pressed -- steering wheel button press code goes here
         {
             shift_state = STATE_UPSHIFT;
         }
@@ -331,7 +336,7 @@ __interrupt void Timer_B (void)
   //P4OUT ^=  PIN4;
 }
 
-#pragma vector=PORT2_VECTOR
+#pragma vector=PORT2_VECTOR //change vector?
 __interrupt void clutch_control (void)
 {
 	//insert scaling for paddle potentiometer to clutch actuator here - full control of clutch
