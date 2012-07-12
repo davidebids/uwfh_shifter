@@ -1,12 +1,12 @@
-//#include "msp430.h"
 #include <msp430x22x2.h>
 //#include "can.h"
 //#include "can_data.h"
+#include "main.h"
 //https://github.com/davidebids/uwfh_shifter.git
 
-#include "main.h"
-
-
+//
+//State Declarations
+//
 #define STATE_IDLE							0
 #define STATE_UPSHIFT						1
 #define STATE_DOWNSHIFT						2
@@ -44,6 +44,7 @@ void timer_init(void);
 //
 void initPortPins(void)
 {
+	//Set Initial Values
 	P1OUT = 0;
 	P2OUT = 0;
 	P3OUT = 0;
@@ -54,14 +55,14 @@ void initPortPins(void)
 	P3DIR = PIN1 + PIN2 + PIN3 + PIN4 + PIN5;
 	P4DIR = PIN2 + PIN7;
 
-	//Digital Inputs
-	//P1DIR = ~(PIN1 + PIN2 + PIN3);
-
 	//Analog Inputs
 	P4DIR = ~(PIN5 + PIN6);
 	P2DIR = ~PIN2;
 
-	//P3SEL = PIN1 + PIN2 + PIN3;				//For SPI
+	//Enable Interrupt for P2.2 Clutch Paddle
+	P2IES |= PIN2;
+	P2IFG &= ~PIN2;
+	P2IE |= PIN2;
 }
 
 void clock_init (void)
@@ -217,10 +218,10 @@ void main(void)
 	clock_init();
 	__enable_interrupt();                     // Enable interrupts
 
-  initPortPins();                           // Initialize port pins
-  timer_init();
-  gear_indication();
-  ign_cut = 0;
+	initPortPins();                           // Initialize port pins
+	timer_init();
+	gear_indication();
+	ign_cut = 0;
 
 //  spi_init();
 //  can_init(CAN_BITRATE_250);
@@ -239,7 +240,7 @@ void main(void)
         {
     		shift_state = STATE_UPSHIFT;
         }
-        else if (((P1IN & PIN2) != PIN2) && gear_num >= 1) //downshift button pressed
+        else if (((P1IN & PIN2) != PIN2) && gear_num >= 1) //downshift button pressed --change this to just > 1?
         {
         	shift_state = STATE_DOWNSHIFT;
         }
@@ -333,8 +334,6 @@ void main(void)
 #pragma vector=TIMERA0_VECTOR
 __interrupt void Timer_A (void)
 {
-  //P2OUT ^= PIN2+PIN1;                       // Toggle P2.2,1
-
   LPM0_EXIT;
 }
 
@@ -344,15 +343,22 @@ __interrupt void Timer_B (void)
   //P4OUT ^=  PIN4;
 }
 
-/*#pragma vector=PORT2_VECTOR //change vector!
-__interrupt void clutch_control (void)
+#pragma vector = PORT2_VECTOR //Paddle is P2.2
+__interrupt void clutch_control_ISR (void)
 {
-	//insert scaling for paddle potentiometer to clutch actuator here - full control of clutch
-	//add vector enable interrupt - eg. TBIE in main()
-}*/
+	switch(P2IFG & PIN2) {
+		case PIN2:
+			P2IFG &= ~PIN2;
+			//insert scaling for paddle potentiometer to clutch actuator here - full control of clutch
+			return;
+		default:
+			P2IFG = 0;
+			return;
+	}
+}
 
 // Initialize TimerA to wake up processor at 2kHz
-void timer_init(void)
+void timer_init(void) //remove??
 {
 
   CCR0 = 1483;
