@@ -56,8 +56,8 @@ void initPortPins(void)
 	P4DIR = PIN2 + PIN7;
 
 	//Analog Inputs
-	P4DIR = ~(PIN5 + PIN6);
-	P2DIR = ~PIN2;
+	//P4DIR = ~(PIN5 + PIN6);
+	//P2DIR = ~PIN2;
 
 	//Enable Interrupt for P2.2 Clutch Paddle
 	P2IES |= PIN2;
@@ -76,14 +76,19 @@ void clock_init (void)
 void actuate_clutch(void)
 {
 	if (clutch_state == 1) {
-		while (clutch_posn < clutch_engaged) { //update position with legitimate value - only move clutch as much as needed for the shift, smallest amount for quickest shift
-			//PWMH and DIR_FORWARD
+		while (clutch_posn < clutch_engaged) { //update positions with legitimate value
+			P3OUT |= PIN1 + PIN2; //PWMH, DIR_FORWARD
 		}
+
+		P3OUT &= ~PIN1;
 	}
 	else if (clutch_state == 0) {
 		while (clutch_posn > clutch_engaged) {
-			//PWMH and DIR REVERSE
+			P3OUT |= PIN1; //PWMH
+			P3OUT &= ~PIN2; //DIR_REVERSE
 		}
+
+		P3OUT &= ~PIN1;
 	}
 }
 
@@ -139,15 +144,10 @@ void shift_gear (void)
 
 	if (gear_status == 1) {
 
-		//P3OUT |= PIN1 + PIN2;
-
 		//if (in_neutral != 1) {
 			//ign_cut = 1;
 			//ignition_cut();
 		//}
-
-		//P3OUT |= PIN3;
-		//P4OUT |= PIN2;
 
 		/*while (shift_posn < up_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
 			TBCCR1 = 512; //feedback from pot
@@ -165,11 +165,6 @@ void shift_gear (void)
 	else if (gear_status == 2) {
 		//clutch_state = 1;
 		//actuate_clutch();
-
-    	//P3OUT &= ~PIN3;
-    	//P4OUT |= PIN2;
-
-    	//P3OUT ^= (PIN1 + PIN2);
 
 		/*while (shift_posn > down_posn) { //update value corresponding to actuator position, PWM DIR_REVERSE
 			TBCCR1 = 512;
@@ -236,7 +231,7 @@ void main(void)
 
   for(;;) //1 kHz loop
   {
-    _BIS_SR(LPM0_bits + GIE);               // LPM0, enable interrupts
+	  __bis_SR_register(GIE); //enable general interrupts
 
     /*
      * Out of sleep mode.
