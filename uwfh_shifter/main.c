@@ -77,14 +77,12 @@ void actuate_clutch(void)
 {
 	if (clutch_state == 1) {
 		while (clutch_posn < clutch_engaged) { //update position with legitimate value - only move clutch as much as needed for the shift, smallest amount for quickest shift
-			TBCCR1 = 512;
-			//SOME_PIN = DIR_FORWARD;
+			//PWMH and DIR_FORWARD
 		}
 	}
 	else if (clutch_state == 0) {
 		while (clutch_posn > clutch_engaged) {
-			TBCCR1 = 512;
-			//SOME PIN = DIR_REVERSE - disengage clutch
+			//PWMH and DIR REVERSE
 		}
 	}
 }
@@ -141,29 +139,39 @@ void shift_gear (void)
 
 	if (gear_status == 1) {
 
-		if (in_neutral != 1) {
-			ign_cut = 1;
-			ignition_cut();
-		}
+		//P3OUT |= PIN1 + PIN2;
 
-		while (shift_posn < up_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
+		//if (in_neutral != 1) {
+			//ign_cut = 1;
+			//ignition_cut();
+		//}
+
+		//P3OUT |= PIN3;
+		//P4OUT |= PIN2;
+
+		/*while (shift_posn < up_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
 			TBCCR1 = 512; //feedback from pot
-		}
+		}*/
 
-		if (in_neutral != 1) {
+		/*if (in_neutral != 1) {
 			ign_cut = 0;
 			ignition_cut();
-		}
+		}*/
 
-		while (shift_posn > rest_posn) { //update value corresponding to actuator position, PWM DIR_REVERSE
+		/*while (shift_posn > rest_posn) { //update value corresponding to actuator position, PWM DIR_REVERSE
 			TBCCR1 = 512; //feedback from pot
-		}
+		}*/
 	}
 	else if (gear_status == 2) {
-		clutch_state = 1;
-		actuate_clutch();
+		//clutch_state = 1;
+		//actuate_clutch();
 
-		while (shift_posn > down_posn) { //update value corresponding to actuator position, PWM DIR_REVERSE
+    	//P3OUT &= ~PIN3;
+    	//P4OUT |= PIN2;
+
+    	//P3OUT ^= (PIN1 + PIN2);
+
+		/*while (shift_posn > down_posn) { //update value corresponding to actuator position, PWM DIR_REVERSE
 			TBCCR1 = 512;
 		}
 
@@ -172,18 +180,18 @@ void shift_gear (void)
 
 		while (shift_posn < rest_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD - back to rest position
 			TBCCR1 = 512;
-		}
+		}*/
 	}
 	else if (gear_status == 3) {
 		if (gear_num == 1)
 		{
-			while (shift_posn < neutral_posn) { //update value corresponding to position, PWM DIR_FORWARD
+			/*while (shift_posn < neutral_posn) { //update value corresponding to position, PWM DIR_FORWARD
 				TBCCR1 = 512;
-			}
+			}*/
 		}
 		else if (gear_num == 2)
 		{
-	    	clutch_state = 1;
+	    	/*clutch_state = 1;
 	    	actuate_clutch();
 
 			while (shift_posn > neutral_posn) { //update value corresponding to position, PWM DIR_REVERSE
@@ -195,7 +203,7 @@ void shift_gear (void)
 
 			while (shift_posn < rest_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
 				TBCCR1 = 512;
-			}
+			}*/
 		}
 	}
 }
@@ -257,11 +265,10 @@ void main(void)
     }
     else if (shift_state == STATE_UPSHIFT)
     {
-	   /* gear_status = 1;
-		shift_gear();*/
-		//in_neutral = 0;
-
+    	gear_status = 1;
+		shift_gear();
     	gear_indication();
+    	in_neutral = 0;
 
     	while ((P1IN & PIN1) != PIN1);
 
@@ -273,11 +280,10 @@ void main(void)
     }
     else if (shift_state == STATE_DOWNSHIFT)
     {
-		/*gear_status = 2;
-		shift_gear();*/
-		//in_neutral = 0;
-
+    	gear_status = 2;
+		shift_gear();
     	gear_indication();
+		in_neutral = 0;
 
 		if (gear_num <= 1) {
 			gear_num = 1;
@@ -307,14 +313,14 @@ void main(void)
     }
     else if (shift_state == STATE_NEUTRAL_FROM_FIRST)
     {
-    	/*gear_status = 3;
-    	shift_gear();*/
+    	gear_status = 3;
+    	shift_gear();
     	shift_state = STATE_NEUTRAL;
     }
     else if (shift_state == STATE_NEUTRAL_FROM_SECOND)
     {
-    	/*gear_status = 3;
-    	shift_gear();*/
+    	gear_status = 3;
+    	shift_gear();
     	gear_num--;
     	shift_state = STATE_NEUTRAL;
     }
@@ -323,7 +329,7 @@ void main(void)
     	gear_indication();
     	prev_state = STATE_NEUTRAL;
 		shift_state = STATE_IDLE;
-		//in_neutral = 1;
+		in_neutral = 1;
     }
     //else - what - throw exception, reset? -- display N/A as gear indication, cause driver to downshift a bunch of times to reset to first gear -- used for when the car shuts off eg. from BRB
   }
@@ -335,12 +341,6 @@ void main(void)
 __interrupt void Timer_A (void)
 {
   LPM0_EXIT;
-}
-
-#pragma vector=TIMERB0_VECTOR
-__interrupt void Timer_B (void)
-{
-  //P4OUT ^=  PIN4;
 }
 
 #pragma vector = PORT2_VECTOR //Paddle is P2.2
@@ -358,19 +358,9 @@ __interrupt void clutch_control_ISR (void)
 }
 
 // Initialize TimerA to wake up processor at 2kHz
-void timer_init(void) //remove??
+void timer_init(void)
 {
-
   CCR0 = 1483;
   TACTL = TASSEL_2 + ID_3 + MC_1;                  // SMCLK, upmode
-
-  TBCCR0 = 512 - 1;                         // PWM Period
-  TBCCTL1 = OUTMOD_7;                       // TBCCR1 reset/set
-  TBCCR1 = 384;                             // TBCCR1 PWM duty cycle //fraction of 512 (75% duty cycle)
-  TBCCTL2 = OUTMOD_7;
-  TBCCR2 = 128;								//fraction of 512 (25% duty cycle)
-  TBCTL = TBSSEL_2 + MC_1;                  // SMCLK, up mode
-
   CCTL0 = CCIE;                             // CCR0 interrupt enabled
-  TBCCTL0 = CCIE;                             // CCR0 interrupt enabled
 }
