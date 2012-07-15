@@ -18,21 +18,20 @@
 #define STATE_NEUTRAL_TO_FIRST				8
 #define STATE_NEUTRAL_TO_SECOND				9
 
-#define DIR_REVERSE	0
-#define DIR_FORWARD	1
-
 //
 //Variable Declarations
 //
-long double shift_posn, clutch_posn;
-long double up_posn = 5; //Position in Volts
-long double down_posn = 3; //Position in Volts
-long double rest_posn = 1; //Position in Volts
-long double neutral_posn = 2; //Position in Volts
-long double clutch_engaged = 5; //Position in Volts
+float shift_posn, clutch_posn;
+float up_posn = 952; //Position in fraction of volts
+float down_posn = 69; //Position in fraction of volts
+float rest_posn = 532; //Position in fraction of volts
+float neutral_posn = 200; //Position in fraction of volts
+float clutch_retract = 385; //Position in fraction of volts
+float clutch_half = 193; //Position in fraction of volts
+float clutch_extend = 0; //Position in fraction of volts
 unsigned char clutch_state, shift_state, prev_state, ign_cut, gear_status, in_neutral;
 unsigned int gear_num;
-unsigned char man_dir, man_mode;
+//unsigned char man_dir, man_mode;
 
 //
 // Function Declarations
@@ -55,14 +54,79 @@ void initPortPins(void)
 	P3DIR = PIN1 + PIN2 + PIN3 + PIN4 + PIN5;
 	P4DIR = PIN2 + PIN7;
 
-	//Analog Inputs
-	//P4DIR = ~(PIN5 + PIN6);
-	//P2DIR = ~PIN2;
-
 	//Enable Interrupt for P2.2 Clutch Paddle
 	P2IES |= PIN2;
 	P2IFG &= ~PIN2;
 	P2IE |= PIN2;
+
+	//PWMH
+	//P4OUT &= ~PIN2;
+}
+
+void initActuators(void)
+{
+	ADC10CTL0 &= ~ENC;
+	ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
+	ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
+	ADC10AE0 = 0x4;
+	ADC10AE1 = 0xC0;
+	ADC10CTL0 |= ENC;
+
+	// ADC Start Conversion - Software trigger
+	ADC10CTL0 |= ADC10SC;
+
+	// Loop until ADC10IFG is set indicating ADC conversion complete
+	while ((ADC10CTL0 & ADC10IFG) == 0);
+
+	// Read ADC conversion result from ADC10MEM
+	shift_posn = ADC10MEM;
+
+	if (shift_posn < rest_posn) {
+		while (shift_posn < rest_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
+			P3OUT |= PIN3; //DIR
+			P4OUT |= PIN2; //PWMH
+
+			ADC10CTL0 &= ~ENC;
+			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
+			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
+			ADC10AE0 = 0x4;
+			ADC10AE1 = 0xC0;
+			ADC10CTL0 |= ENC;
+
+			// ADC Start Conversion - Software trigger
+			ADC10CTL0 |= ADC10SC;
+
+			// Loop until ADC10IFG is set indicating ADC conversion complete
+			while ((ADC10CTL0 & ADC10IFG) == 0);
+
+			// Read ADC conversion result from ADC10MEM
+			shift_posn = ADC10MEM;
+		}
+		P4OUT &= ~PIN2;
+	}
+	else if (shift_posn > rest_posn) {
+		while (shift_posn > rest_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
+			P3OUT &= ~PIN3; //DIR
+			P4OUT |= PIN2; //PWMH
+
+			ADC10CTL0 &= ~ENC;
+			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
+			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
+			ADC10AE0 = 0x4;
+			ADC10AE1 = 0xC0;
+			ADC10CTL0 |= ENC;
+
+			// ADC Start Conversion - Software trigger
+			ADC10CTL0 |= ADC10SC;
+
+			// Loop until ADC10IFG is set indicating ADC conversion complete
+			while ((ADC10CTL0 & ADC10IFG) == 0);
+
+			// Read ADC conversion result from ADC10MEM
+			shift_posn = ADC10MEM;
+		}
+		P4OUT &= ~PIN2;
+	}
 }
 
 void clock_init (void)
@@ -75,20 +139,51 @@ void clock_init (void)
 //Clutch actuation method
 void actuate_clutch(void)
 {
+	ADC10CTL0 &= ~ENC;
+	ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
+	ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_15;
+	ADC10AE0 = 0x4;
+	ADC10AE1 = 0xC0;
+	ADC10CTL0 |= ENC;
+
+	// ADC Start Conversion - Software trigger
+	ADC10CTL0 |= ADC10SC;
+
+	// Loop until ADC10IFG is set indicating ADC conversion complete
+	while ((ADC10CTL0 & ADC10IFG) == 0);
+
+	// Read ADC conversion result from ADC10MEM
+	clutch_posn = ADC10MEM;
+
 	if (clutch_state == 1) {
-		while (clutch_posn < clutch_engaged) { //update positions with legitimate value
-			P3OUT |= PIN1 + PIN2; //PWMH, DIR_FORWARD
+		while (clutch_posn < clutch_half) { //update value corresponding to actuator position, PWM DIR_FORWARD
+			P3OUT &= ~PIN2; //DIR
+			P3OUT |= PIN1; //PWMH
+
+			ADC10CTL0 &= ~ENC;
+			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
+			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_15;
+			ADC10AE0 = 0x4;
+			ADC10AE1 = 0xC0;
+			ADC10CTL0 |= ENC;
+
+			// ADC Start Conversion - Software trigger
+			ADC10CTL0 |= ADC10SC;
+
+			// Loop until ADC10IFG is set indicating ADC conversion complete
+			while ((ADC10CTL0 & ADC10IFG) == 0);
+
+			// Read ADC conversion result from ADC10MEM
+			clutch_posn = ADC10MEM;
 		}
 
 		P3OUT &= ~PIN1;
 	}
 	else if (clutch_state == 0) {
-		while (clutch_posn > clutch_engaged) {
+		//while (clutch_posn > clutch_extend) { //update value corresponding to actuator position, PWM DIR_FORWARD
+			P3OUT |= PIN2; //DIR
 			P3OUT |= PIN1; //PWMH
-			P3OUT &= ~PIN2; //DIR_REVERSE
-		}
-
-		P3OUT &= ~PIN1;
+		//}
 	}
 }
 
@@ -142,46 +237,144 @@ void shift_gear (void)
 {
 	//gear_status = 1 (upshift), gear_status = 2 (downshift), gear_status = 3 (neutral - half shift)
 
+	ADC10CTL0 &= ~ENC;
+	ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
+	ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
+	ADC10AE0 = 0x4;
+	ADC10AE1 = 0xC0;
+	ADC10CTL0 |= ENC;
+
+	// ADC Start Conversion - Software trigger
+	ADC10CTL0 |= ADC10SC;
+
+	// Loop until ADC10IFG is set indicating ADC conversion complete
+	while ((ADC10CTL0 & ADC10IFG) == 0);
+
+	// Read ADC conversion result from ADC10MEM
+	shift_posn = ADC10MEM;
+
 	if (gear_status == 1) {
 
-		//if (in_neutral != 1) {
-			//ign_cut = 1;
-			//ignition_cut();
-		//}
+		if (in_neutral != 1) {
+			ign_cut = 1;
+			ignition_cut();
+		}
 
-		/*while (shift_posn < up_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
-			TBCCR1 = 512; //feedback from pot
-		}*/
+		while (shift_posn < up_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
+			P3OUT |= PIN3; //DIR
+			P4OUT |= PIN2; //PWMH
 
-		/*if (in_neutral != 1) {
+			ADC10CTL0 &= ~ENC;
+			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
+			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
+			ADC10AE0 = 0x4;
+			ADC10AE1 = 0xC0;
+			ADC10CTL0 |= ENC;
+
+			// ADC Start Conversion - Software trigger
+			ADC10CTL0 |= ADC10SC;
+
+			// Loop until ADC10IFG is set indicating ADC conversion complete
+			while ((ADC10CTL0 & ADC10IFG) == 0);
+
+			// Read ADC conversion result from ADC10MEM
+			shift_posn = ADC10MEM;
+		}
+
+		P4OUT &= ~PIN2;
+
+		if (in_neutral != 1) {
 			ign_cut = 0;
 			ignition_cut();
-		}*/
+		}
 
-		/*while (shift_posn > rest_posn) { //update value corresponding to actuator position, PWM DIR_REVERSE
-			TBCCR1 = 512; //feedback from pot
-		}*/
+		while (shift_posn > rest_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
+			P3OUT &= ~PIN3; //DIR
+			P4OUT |= PIN2; //PWMH
+
+			ADC10CTL0 &= ~ENC;
+			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
+			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
+			ADC10AE0 = 0x4;
+			ADC10AE1 = 0xC0;
+			ADC10CTL0 |= ENC;
+
+			// ADC Start Conversion - Software trigger
+			ADC10CTL0 |= ADC10SC;
+
+			// Loop until ADC10IFG is set indicating ADC conversion complete
+			while ((ADC10CTL0 & ADC10IFG) == 0);
+
+			// Read ADC conversion result from ADC10MEM
+			shift_posn = ADC10MEM;
+		}
+
+		P4OUT &= ~PIN2;
 	}
 	else if (gear_status == 2) {
-		//clutch_state = 1;
-		//actuate_clutch();
+		clutch_state = 1;
+		actuate_clutch();
 
-		/*while (shift_posn > down_posn) { //update value corresponding to actuator position, PWM DIR_REVERSE
-			TBCCR1 = 512;
+		while (shift_posn > down_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
+			P3OUT &= ~PIN3; //DIR
+			P4OUT |= PIN2; //PWMH
+
+			ADC10CTL0 &= ~ENC;
+			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
+			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
+			ADC10AE0 = 0x4;
+			ADC10AE1 = 0xC0;
+			ADC10CTL0 |= ENC;
+
+			// ADC Start Conversion - Software trigger
+			ADC10CTL0 |= ADC10SC;
+
+			// Loop until ADC10IFG is set indicating ADC conversion complete
+			while ((ADC10CTL0 & ADC10IFG) == 0);
+
+			// Read ADC conversion result from ADC10MEM
+			shift_posn = ADC10MEM;
 		}
+
+		P4OUT &= ~PIN2;
+
+		while (shift_posn < rest_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
+			P3OUT |= PIN3; //DIR
+			P4OUT |= PIN2; //PWMH
+
+			ADC10CTL0 &= ~ENC;
+			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
+			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
+			ADC10AE0 = 0x4;
+			ADC10AE1 = 0xC0;
+			ADC10CTL0 |= ENC;
+
+			// ADC Start Conversion - Software trigger
+			ADC10CTL0 |= ADC10SC;
+
+			// Loop until ADC10IFG is set indicating ADC conversion complete
+			while ((ADC10CTL0 & ADC10IFG) == 0);
+
+			// Read ADC conversion result from ADC10MEM
+			shift_posn = ADC10MEM;
+		}
+
+		P4OUT &= ~PIN2;
 
 		clutch_state = 0;
 		actuate_clutch();
-
-		while (shift_posn < rest_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD - back to rest position
-			TBCCR1 = 512;
-		}*/
 	}
 	else if (gear_status == 3) {
 		if (gear_num == 1)
 		{
 			/*while (shift_posn < neutral_posn) { //update value corresponding to position, PWM DIR_FORWARD
-				TBCCR1 = 512;
+				P3OUT |= PIN3; //DIR
+				P4OUT |= PIN2; //PWMH
+			}*/
+
+			/*while (shift_posn > rest_posn) { //update value corresponding to actuator position - back to rest position
+				P3OUT &= ~PIN3; //DIR
+				P4OUT |= PIN2; //PWMH
 			}*/
 		}
 		else if (gear_num == 2)
@@ -190,14 +383,16 @@ void shift_gear (void)
 	    	actuate_clutch();
 
 			while (shift_posn > neutral_posn) { //update value corresponding to position, PWM DIR_REVERSE
-				TBCCR1 = 512;
+				P3OUT &= ~PIN3;
+				P4OUT |= PIN2;
 			}
 
 	    	clutch_state = 0;
 	    	actuate_clutch();
 
 			while (shift_posn < rest_posn) { //update value corresponding to actuator position, PWM DIR_FORWARD
-				TBCCR1 = 512;
+				P3OUT |= PIN3;
+				P4OUT |= PIN2;
 			}*/
 		}
 	}
@@ -222,6 +417,7 @@ void main(void)
 	__enable_interrupt();                     // Enable interrupts
 
 	initPortPins();                           // Initialize port pins
+	initActuators();
 	timer_init();
 	gear_indication();
 	ign_cut = 0;
@@ -243,7 +439,7 @@ void main(void)
         {
     		shift_state = STATE_UPSHIFT;
         }
-        else if (((P1IN & PIN2) != PIN2) && gear_num >= 1) //downshift button pressed --change this to just > 1?
+        else if (((P1IN & PIN2) != PIN2) && gear_num >= 1) //downshift button pressed -- >= 1 for when in car
         {
         	shift_state = STATE_DOWNSHIFT;
         }
@@ -260,12 +456,12 @@ void main(void)
     }
     else if (shift_state == STATE_UPSHIFT)
     {
-    	gear_status = 1;
-		shift_gear();
+    	while ((P1IN & PIN1) != PIN1);
+
     	gear_indication();
     	in_neutral = 0;
-
-    	while ((P1IN & PIN1) != PIN1);
+    	gear_status = 1;
+		shift_gear();
 
 		gear_num++;
 		gear_indication();
@@ -275,10 +471,12 @@ void main(void)
     }
     else if (shift_state == STATE_DOWNSHIFT)
     {
-    	gear_status = 2;
-		shift_gear();
+		while ((P1IN & PIN2) != PIN2);
+
     	gear_indication();
 		in_neutral = 0;
+		gear_status = 2;
+		shift_gear();
 
 		if (gear_num <= 1) {
 			gear_num = 1;
@@ -289,7 +487,6 @@ void main(void)
 			gear_indication();
 		}
 
-		while ((P1IN & PIN2) != PIN2);
 		shift_state = STATE_IDLE;
     }
     else if (shift_state == STATE_GEAR_CHECK)
@@ -322,9 +519,9 @@ void main(void)
     else if (shift_state == STATE_NEUTRAL)
     {
     	gear_indication();
+		in_neutral = 1;
     	prev_state = STATE_NEUTRAL;
 		shift_state = STATE_IDLE;
-		in_neutral = 1;
     }
     //else - what - throw exception, reset? -- display N/A as gear indication, cause driver to downshift a bunch of times to reset to first gear -- used for when the car shuts off eg. from BRB
   }
