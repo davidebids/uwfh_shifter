@@ -15,12 +15,14 @@ void main(void)
 	BCSCTL1 = CALBC1_12MHZ;
 
 	//System init
-	__bis_SR_register(GIE); //enable general interrupts
+	//__bis_SR_register(GIE); //enable general interrupts
 
 	int flag = 0;
 	float tempA15, tempA14, tempA2;
 
 	for (;;) {
+		__bis_SR_register(GIE); //enable general interrupts ----test when moved here!
+
 		if (flag == 0) {
 			ADC10CTL0 &= ~ENC;
 			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
@@ -37,7 +39,6 @@ void main(void)
 
 			// Read ADC conversion result from ADC10MEM
 			tempA15 = ADC10MEM;
-			//need to set ADC10MEM to 0 after reading value?
 
 			flag = 1;
 		}
@@ -76,7 +77,6 @@ void main(void)
 
 			// Read ADC conversion result from ADC10MEM
 			tempA2 = ADC10MEM;
-			//need to set ADC10MEM to 0 after reading value?
 
 			flag = 0;
 		}
