@@ -2,6 +2,7 @@
 //#include "can.h"
 //#include "can_data.h"
 #include "main.h"
+#include <string.h>
 //https://github.com/davidebids/uwfh_shifter.git
 
 //
@@ -56,11 +57,23 @@ void initPortPins(void)
 	P4DIR = PIN2 + PIN7;
 }
 
-void initActuators(void)
+float readADC(int channel)
 {
+	float adc_val;
+
 	ADC10CTL0 &= ~ENC;
 	ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-	ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
+
+	if (channel == 14) {
+		ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14;
+	}
+	else if (channel == 15) {
+		ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_15;
+	}
+	else if (channel == 2) {
+		ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_2;
+	}
+
 	ADC10AE0 = 0x4;
 	ADC10AE1 = 0xC0;
 	ADC10CTL0 |= ENC;
@@ -72,28 +85,21 @@ void initActuators(void)
 	while ((ADC10CTL0 & ADC10IFG) == 0);
 
 	// Read ADC conversion result from ADC10MEM
-	shift_posn = ADC10MEM;
+	adc_val = ADC10MEM;
+
+	return adc_val;
+}
+
+void initActuators(void)
+{
+	shift_posn = readADC(14);
 
 	if (shift_posn < rest_posn) {
 		while (shift_posn < rest_posn) {
 			P3OUT |= PIN3; //DIR
 			P4OUT |= PIN2; //PWMH
 
-			ADC10CTL0 &= ~ENC;
-			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-			ADC10AE0 = 0x4;
-			ADC10AE1 = 0xC0;
-			ADC10CTL0 |= ENC;
-
-			// ADC Start Conversion - Software trigger
-			ADC10CTL0 |= ADC10SC;
-
-			// Loop until ADC10IFG is set indicating ADC conversion complete
-			while ((ADC10CTL0 & ADC10IFG) == 0);
-
-			// Read ADC conversion result from ADC10MEM
-			shift_posn = ADC10MEM;
+			shift_posn = readADC(14);
 		}
 		P4OUT &= ~PIN2;
 	}
@@ -102,21 +108,7 @@ void initActuators(void)
 			P3OUT &= ~PIN3; //DIR
 			P4OUT |= PIN2; //PWMH
 
-			ADC10CTL0 &= ~ENC;
-			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-			ADC10AE0 = 0x4;
-			ADC10AE1 = 0xC0;
-			ADC10CTL0 |= ENC;
-
-			// ADC Start Conversion - Software trigger
-			ADC10CTL0 |= ADC10SC;
-
-			// Loop until ADC10IFG is set indicating ADC conversion complete
-			while ((ADC10CTL0 & ADC10IFG) == 0);
-
-			// Read ADC conversion result from ADC10MEM
-			shift_posn = ADC10MEM;
+			shift_posn = readADC(14);
 		}
 		P4OUT &= ~PIN2;
 	}
@@ -131,42 +123,14 @@ void clock_init (void)
 //Clutch actuation method
 void actuate_clutch(void)
 {
-	ADC10CTL0 &= ~ENC;
-	ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-	ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_15;
-	ADC10AE0 = 0x4;
-	ADC10AE1 = 0xC0;
-	ADC10CTL0 |= ENC;
-
-	// ADC Start Conversion - Software trigger
-	ADC10CTL0 |= ADC10SC;
-
-	// Loop until ADC10IFG is set indicating ADC conversion complete
-	while ((ADC10CTL0 & ADC10IFG) == 0);
-
-	// Read ADC conversion result from ADC10MEM
-	clutch_posn = ADC10MEM;
+	clutch_posn = readADC(15);
 
 	if (clutch_state == 1) {
 		while (clutch_posn < clutch_half) {
 			P3OUT &= ~PIN2; //DIR
 			P3OUT |= PIN1; //PWMH
 
-			ADC10CTL0 &= ~ENC;
-			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_15;
-			ADC10AE0 = 0x4;
-			ADC10AE1 = 0xC0;
-			ADC10CTL0 |= ENC;
-
-			// ADC Start Conversion - Software trigger
-			ADC10CTL0 |= ADC10SC;
-
-			// Loop until ADC10IFG is set indicating ADC conversion complete
-			while ((ADC10CTL0 & ADC10IFG) == 0);
-
-			// Read ADC conversion result from ADC10MEM
-			clutch_posn = ADC10MEM;
+			clutch_posn = readADC(15);
 		}
 
 		P3OUT &= ~PIN1;
@@ -176,21 +140,7 @@ void actuate_clutch(void)
 			P3OUT |= PIN2; //DIR
 			P3OUT |= PIN1; //PWMH
 
-			ADC10CTL0 &= ~ENC;
-			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_15;
-			ADC10AE0 = 0x4;
-			ADC10AE1 = 0xC0;
-			ADC10CTL0 |= ENC;
-
-			// ADC Start Conversion - Software trigger
-			ADC10CTL0 |= ADC10SC;
-
-			// Loop until ADC10IFG is set indicating ADC conversion complete
-			while ((ADC10CTL0 & ADC10IFG) == 0);
-
-			// Read ADC conversion result from ADC10MEM
-			clutch_posn = ADC10MEM;
+			clutch_posn = readADC(15);
 		}
 
 		P3OUT |= PIN2; //DIR
@@ -248,21 +198,7 @@ void shift_gear (void)
 {
 	//gear_status = 1 (upshift), gear_status = 2 (downshift), gear_status = 3 (neutral - half shift)
 
-	ADC10CTL0 &= ~ENC;
-	ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-	ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-	ADC10AE0 = 0x4;
-	ADC10AE1 = 0xC0;
-	ADC10CTL0 |= ENC;
-
-	// ADC Start Conversion - Software trigger
-	ADC10CTL0 |= ADC10SC;
-
-	// Loop until ADC10IFG is set indicating ADC conversion complete
-	while ((ADC10CTL0 & ADC10IFG) == 0);
-
-	// Read ADC conversion result from ADC10MEM
-	shift_posn = ADC10MEM;
+	shift_posn = readADC(14);
 
 	if (gear_status == 1) {
 		if (in_neutral == 1) {
@@ -270,21 +206,7 @@ void shift_gear (void)
 				P3OUT |= PIN3; //DIR
 				P4OUT |= PIN2; //PWMH
 
-				ADC10CTL0 &= ~ENC;
-				ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-				ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-				ADC10AE0 = 0x4;
-				ADC10AE1 = 0xC0;
-				ADC10CTL0 |= ENC;
-
-				// ADC Start Conversion - Software trigger
-				ADC10CTL0 |= ADC10SC;
-
-				// Loop until ADC10IFG is set indicating ADC conversion complete
-				while ((ADC10CTL0 & ADC10IFG) == 0);
-
-				// Read ADC conversion result from ADC10MEM
-				shift_posn = ADC10MEM;
+				shift_posn = readADC(14);
 			}
 
 			P4OUT &= ~PIN2;
@@ -293,21 +215,7 @@ void shift_gear (void)
 				P3OUT &= ~PIN3; //DIR
 				P4OUT |= PIN2; //PWMH
 
-				ADC10CTL0 &= ~ENC;
-				ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-				ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-				ADC10AE0 = 0x4;
-				ADC10AE1 = 0xC0;
-				ADC10CTL0 |= ENC;
-
-				// ADC Start Conversion - Software trigger
-				ADC10CTL0 |= ADC10SC;
-
-				// Loop until ADC10IFG is set indicating ADC conversion complete
-				while ((ADC10CTL0 & ADC10IFG) == 0);
-
-				// Read ADC conversion result from ADC10MEM
-				shift_posn = ADC10MEM;
+				shift_posn = readADC(14);
 			}
 
 			P4OUT &= ~PIN2;
@@ -324,21 +232,7 @@ void shift_gear (void)
 				P3OUT |= PIN3; //DIR
 				P4OUT |= PIN2; //PWMH
 
-				ADC10CTL0 &= ~ENC;
-				ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-				ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-				ADC10AE0 = 0x4;
-				ADC10AE1 = 0xC0;
-				ADC10CTL0 |= ENC;
-
-				// ADC Start Conversion - Software trigger
-				ADC10CTL0 |= ADC10SC;
-
-				// Loop until ADC10IFG is set indicating ADC conversion complete
-				while ((ADC10CTL0 & ADC10IFG) == 0);
-
-				// Read ADC conversion result from ADC10MEM
-				shift_posn = ADC10MEM;
+				shift_posn = readADC(14);
 			}
 
 			P4OUT &= ~PIN2;
@@ -352,21 +246,7 @@ void shift_gear (void)
 				P3OUT &= ~PIN3; //DIR
 				P4OUT |= PIN2; //PWMH
 
-				ADC10CTL0 &= ~ENC;
-				ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-				ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-				ADC10AE0 = 0x4;
-				ADC10AE1 = 0xC0;
-				ADC10CTL0 |= ENC;
-
-				// ADC Start Conversion - Software trigger
-				ADC10CTL0 |= ADC10SC;
-
-				// Loop until ADC10IFG is set indicating ADC conversion complete
-				while ((ADC10CTL0 & ADC10IFG) == 0);
-
-				// Read ADC conversion result from ADC10MEM
-				shift_posn = ADC10MEM;
+				shift_posn = readADC(14);
 			}
 
 			P4OUT &= ~PIN2;
@@ -380,21 +260,7 @@ void shift_gear (void)
 			P3OUT &= ~PIN3; //DIR
 			P4OUT |= PIN2; //PWMH
 
-			ADC10CTL0 &= ~ENC;
-			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-			ADC10AE0 = 0x4;
-			ADC10AE1 = 0xC0;
-			ADC10CTL0 |= ENC;
-
-			// ADC Start Conversion - Software trigger
-			ADC10CTL0 |= ADC10SC;
-
-			// Loop until ADC10IFG is set indicating ADC conversion complete
-			while ((ADC10CTL0 & ADC10IFG) == 0);
-
-			// Read ADC conversion result from ADC10MEM
-			shift_posn = ADC10MEM;
+			shift_posn = readADC(14);
 		}
 
 		P4OUT &= ~PIN2;
@@ -403,21 +269,7 @@ void shift_gear (void)
 			P3OUT |= PIN3; //DIR
 			P4OUT |= PIN2; //PWMH
 
-			ADC10CTL0 &= ~ENC;
-			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-			ADC10AE0 = 0x4;
-			ADC10AE1 = 0xC0;
-			ADC10CTL0 |= ENC;
-
-			// ADC Start Conversion - Software trigger
-			ADC10CTL0 |= ADC10SC;
-
-			// Loop until ADC10IFG is set indicating ADC conversion complete
-			while ((ADC10CTL0 & ADC10IFG) == 0);
-
-			// Read ADC conversion result from ADC10MEM
-			shift_posn = ADC10MEM;
+			shift_posn = readADC(14);
 		}
 
 		P4OUT &= ~PIN2;
@@ -426,21 +278,7 @@ void shift_gear (void)
 		actuate_clutch();
 	}
 	else if (gear_status == 3) {
-		ADC10CTL0 &= ~ENC;
-		ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-		ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-		ADC10AE0 = 0x4;
-		ADC10AE1 = 0xC0;
-		ADC10CTL0 |= ENC;
-
-		// ADC Start Conversion - Software trigger
-		ADC10CTL0 |= ADC10SC;
-
-		// Loop until ADC10IFG is set indicating ADC conversion complete
-		while ((ADC10CTL0 & ADC10IFG) == 0);
-
-		// Read ADC conversion result from ADC10MEM
-		shift_posn = ADC10MEM;
+		shift_posn = readADC(14);
 
 		if (gear_num == 1 && in_neutral != 1)
 		{
@@ -448,21 +286,7 @@ void shift_gear (void)
 				P3OUT |= PIN3; //DIR
 				P4OUT |= PIN2; //PWMH
 
-				ADC10CTL0 &= ~ENC;
-				ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-				ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-				ADC10AE0 = 0x4;
-				ADC10AE1 = 0xC0;
-				ADC10CTL0 |= ENC;
-
-				// ADC Start Conversion - Software trigger
-				ADC10CTL0 |= ADC10SC;
-
-				// Loop until ADC10IFG is set indicating ADC conversion complete
-				while ((ADC10CTL0 & ADC10IFG) == 0);
-
-				// Read ADC conversion result from ADC10MEM
-				shift_posn = ADC10MEM;
+				shift_posn = readADC(14);
 			}
 
 			P4OUT &= ~PIN2;
@@ -471,25 +295,10 @@ void shift_gear (void)
 				P3OUT &= ~PIN3; //DIR
 				P4OUT |= PIN2; //PWMH
 
-				ADC10CTL0 &= ~ENC;
-				ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-				ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-				ADC10AE0 = 0x4;
-				ADC10AE1 = 0xC0;
-				ADC10CTL0 |= ENC;
-
-				// ADC Start Conversion - Software trigger
-				ADC10CTL0 |= ADC10SC;
-
-				// Loop until ADC10IFG is set indicating ADC conversion complete
-				while ((ADC10CTL0 & ADC10IFG) == 0);
-
-				// Read ADC conversion result from ADC10MEM
-				shift_posn = ADC10MEM;
+				shift_posn = readADC(14);
 			}
 
 			P4OUT &= ~PIN2;
-			//in_neutral = 1;
 		}
 		else if (gear_num == 2 && in_neutral != 1)
 		{
@@ -500,21 +309,7 @@ void shift_gear (void)
 				P3OUT &= ~PIN3; //DIR
 				P4OUT |= PIN2; //PWMH
 
-				ADC10CTL0 &= ~ENC;
-				ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-				ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-				ADC10AE0 = 0x4;
-				ADC10AE1 = 0xC0;
-				ADC10CTL0 |= ENC;
-
-				// ADC Start Conversion - Software trigger
-				ADC10CTL0 |= ADC10SC;
-
-				// Loop until ADC10IFG is set indicating ADC conversion complete
-				while ((ADC10CTL0 & ADC10IFG) == 0);
-
-				// Read ADC conversion result from ADC10MEM
-				shift_posn = ADC10MEM;
+				shift_posn = readADC(14);
 			}
 
 			P4OUT &= ~PIN2;
@@ -523,30 +318,15 @@ void shift_gear (void)
 				P3OUT |= PIN3; //DIR
 				P4OUT |= PIN2; //PWMH
 
-				ADC10CTL0 &= ~ENC;
-				ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-				ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_14; //channel 14
-				ADC10AE0 = 0x4;
-				ADC10AE1 = 0xC0;
-				ADC10CTL0 |= ENC;
-
-				// ADC Start Conversion - Software trigger
-				ADC10CTL0 |= ADC10SC;
-
-				// Loop until ADC10IFG is set indicating ADC conversion complete
-				while ((ADC10CTL0 & ADC10IFG) == 0);
-
-				// Read ADC conversion result from ADC10MEM
-				shift_posn = ADC10MEM;
+				shift_posn = readADC(14);
 			}
 
 			P4OUT &= ~PIN2;
 
 			clutch_state = 0;
 			actuate_clutch();
-
-			//in_neutral = 1;
 		}
+
 		in_neutral = 1;
 	}
 }
@@ -584,21 +364,7 @@ void main(void)
      */
 
 	//Read in first value for clutch paddle
-	ADC10CTL0 &= ~ENC;
-	ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-	ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_2; //channel 14
-	ADC10AE0 = 0x4;
-	ADC10AE1 = 0xC0;
-	ADC10CTL0 |= ENC;
-
-	// ADC Start Conversion - Software trigger
-	ADC10CTL0 |= ADC10SC;
-
-	// Loop until ADC10IFG is set indicating ADC conversion complete
-	while ((ADC10CTL0 & ADC10IFG) == 0);
-
-	// Read ADC conversion result from ADC10MEM
-	paddle_val = ADC10MEM;
+	paddle_val = readADC(2);
 
     if (shift_state == STATE_IDLE)
     {
@@ -630,7 +396,6 @@ void main(void)
     	while ((P1IN & PIN1) != PIN1);
 
     	gear_indication();
-    	//in_neutral = 0;
     	gear_status = 1;
 		shift_gear();
 
@@ -709,37 +474,8 @@ void main(void)
 
 			P3OUT |= PIN1; //PWMH
 
-			ADC10CTL0 &= ~ENC;
-			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_15;
-			ADC10AE0 = 0x4;
-			ADC10AE1 = 0xC0;
-			ADC10CTL0 |= ENC;
-
-			// ADC Start Conversion - Software trigger
-			ADC10CTL0 |= ADC10SC;
-
-			// Loop until ADC10IFG is set indicating ADC conversion complete
-			while ((ADC10CTL0 & ADC10IFG) == 0);
-
-			// Read ADC conversion result from ADC10MEM
-			clutch_posn = ADC10MEM;
-
-			ADC10CTL0 &= ~ENC;
-			ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-			ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_2;
-			ADC10AE0 = 0x4;
-			ADC10AE1 = 0xC0;
-			ADC10CTL0 |= ENC;
-
-			// ADC Start Conversion - Software trigger
-			ADC10CTL0 |= ADC10SC;
-
-			// Loop until ADC10IFG is set indicating ADC conversion complete
-			while ((ADC10CTL0 & ADC10IFG) == 0);
-
-			// Read ADC conversion result from ADC10MEM
-			paddle_val = ADC10MEM;
+			clutch_posn = readADC(15);
+			paddle_val = readADC(2);
 
 			temp = ((paddle_val - 375) / (495 - 375)) * 385;
 
@@ -747,37 +483,8 @@ void main(void)
 				while (temp + 115 > clutch_posn && temp - 115 < clutch_posn) {
 					P3OUT &= ~PIN1;
 
-					ADC10CTL0 &= ~ENC;
-					ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-					ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_15;
-					ADC10AE0 = 0x4;
-					ADC10AE1 = 0xC0;
-					ADC10CTL0 |= ENC;
-
-					// ADC Start Conversion - Software trigger
-					ADC10CTL0 |= ADC10SC;
-
-					// Loop until ADC10IFG is set indicating ADC conversion complete
-					while ((ADC10CTL0 & ADC10IFG) == 0);
-
-					// Read ADC conversion result from ADC10MEM
-					clutch_posn = ADC10MEM;
-
-					ADC10CTL0 &= ~ENC;
-					ADC10CTL0 = ADC10ON + ADC10SR + ADC10SHT_0 + SREF_0;
-					ADC10CTL1 = CONSEQ_0 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_2;
-					ADC10AE0 = 0x4;
-					ADC10AE1 = 0xC0;
-					ADC10CTL0 |= ENC;
-
-					// ADC Start Conversion - Software trigger
-					ADC10CTL0 |= ADC10SC;
-
-					// Loop until ADC10IFG is set indicating ADC conversion complete
-					while ((ADC10CTL0 & ADC10IFG) == 0);
-
-					// Read ADC conversion result from ADC10MEM
-					paddle_val = ADC10MEM;
+					clutch_posn = readADC(15);
+					paddle_val = readADC(2);
 
 					temp = ((paddle_val - 375) / (495 - 375)) * 385;
 				}
