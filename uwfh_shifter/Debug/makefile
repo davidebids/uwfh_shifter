@@ -8,7 +8,7 @@ CG_TOOL_ROOT := F:/TI/ccsv5/tools/compiler/msp430
 
 ORDERED_OBJS += \
 $(GEN_CMDS__FLAG) \
-"./stress_main.obj" \
+"./main.obj" \
 -l"libc.a" \
 "../lnk_msp430f2272.cmd" \
 
@@ -109,21 +109,21 @@ endif
 # Add inputs and outputs from these tool invocations to the build variables 
 
 # All Target
-all: uwfh_shifter_stress.out
+all: uwfh_shifter.out
 
 # Tool invocations
-uwfh_shifter_stress.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
+uwfh_shifter.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: MSP430 Linker'
-	"F:/TI/ccsv5/tools/compiler/msp430/bin/cl430" -vmsp --abi=coffabi -g --define=__MSP430F2272__ --diag_warning=225 --display_error_number --printf_support=minimal -z -m"uwfh_shifter_stress.map" --stack_size=80 --heap_size=80 -i"F:/TI/ccsv5/ccs_base/msp430/include" -i"F:/TI/ccsv5/tools/compiler/msp430/lib" -i"F:/TI/ccsv5/tools/compiler/msp430/include" --reread_libs --warn_sections --rom_model -o "uwfh_shifter_stress.out" $(ORDERED_OBJS)
+	"F:/TI/ccsv5/tools/compiler/msp430/bin/cl430" -vmsp --abi=coffabi -g --define=__MSP430F2272__ --diag_warning=225 --display_error_number --printf_support=minimal -z -m"uwfh_shifter.map" --stack_size=80 --heap_size=80 -i"F:/TI/ccsv5/ccs_base/msp430/include" -i"F:/TI/ccsv5/tools/compiler/msp430/lib" -i"F:/TI/ccsv5/tools/compiler/msp430/include" --reread_libs --warn_sections --rom_model -o "uwfh_shifter.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) $(MSP430_EXECUTABLE_OUTPUTS__QUOTED) "uwfh_shifter_stress.out"
-	-$(RM) "stress_main.pp" 
-	-$(RM) "stress_main.obj" 
+	-$(RM) $(MSP430_EXECUTABLE_OUTPUTS__QUOTED) "uwfh_shifter.out"
+	-$(RM) "main.pp" 
+	-$(RM) "main.obj" 
 	-@echo 'Finished clean'
 	-@echo ' '
 

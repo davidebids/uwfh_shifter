@@ -7,21 +7,21 @@ CMD_SRCS += \
 ../lnk_msp430f2272.cmd 
 
 C_SRCS += \
-../stress_main.c 
+../main.c 
 
 OBJS += \
-./stress_main.obj 
+./main.obj 
 
 C_DEPS += \
-./stress_main.pp 
+./main.pp 
 
 C_DEPS__QUOTED += \
-"stress_main.pp" 
+"main.pp" 
 
 OBJS__QUOTED += \
-"stress_main.obj" 
+"main.obj" 
 
 C_SRCS__QUOTED += \
-"../stress_main.c" 
+"../main.c" 
 
 
