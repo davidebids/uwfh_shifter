@@ -2,6 +2,9 @@
 //#include "can.h"
 //#include "can_data.h"
 #include "main.h"
+#include "spi.h"
+#include "can.h"
+#include "can_data.h"
 #include <string.h>
 //https://github.com/davidebids/uwfh_shifter.git
 
@@ -34,6 +37,8 @@ float clutch_half = 193; //Position in fraction of volts
 float clutch_extend = 0; //Position in fraction of volts
 unsigned char clutch_state, shift_state, prev_state, ign_cut, gear_status, in_neutral;
 unsigned int gear_num;
+
+unsigned int gear_stk1[1*1];
 
 //
 // Function Declarations
@@ -163,30 +168,36 @@ void gear_indication (void) //P3.4, 3.5, 4.7
 	if (gear_num == 1 && shift_state != STATE_NEUTRAL) {
 		P4OUT |= PIN7;
 		P3OUT &= ~(PIN4 + PIN5);
+		can_write_gear (SCU_GEAR_S1, gear_stk1);
 	}
 	else if (gear_num == 2 && shift_state != STATE_NEUTRAL) {
 		P3OUT |= PIN4;
 		P3OUT &= ~PIN5;
 		P4OUT &= ~PIN7;
+		can_write_gear (SCU_GEAR_S1, gear_stk1);
 	}
 	else if (gear_num == 3 && shift_state != STATE_NEUTRAL) {
 		P3OUT |= PIN4;
 		P4OUT |= PIN7;
 		P3OUT &= ~PIN5;
+		can_write_gear (SCU_GEAR_S1, gear_stk1);
 	}
 	else if (gear_num == 4 && shift_state != STATE_NEUTRAL) {
 		P3OUT |= PIN5;
 		P3OUT &= ~PIN4;
 		P4OUT &= ~PIN7;
+		can_write_gear (SCU_GEAR_S1, gear_stk1);
 	}
 	else if (gear_num == 5 && shift_state != STATE_NEUTRAL) {
 		P3OUT |= PIN5;
 		P4OUT |= PIN7;
 		P3OUT &= ~PIN4;
+		can_write_gear (SCU_GEAR_S1, gear_stk1);
 	}
 	else if (shift_state == STATE_NEUTRAL) {
 		P3OUT |= PIN4 + PIN5;
 		P4OUT |= PIN7;
+		can_write_gear (SCU_GEAR_S1, gear_stk1);
 	}
 	else {
 		P3OUT &= ~(PIN4 + PIN5);
@@ -352,8 +363,12 @@ void main(void)
 	initPortPins();                           // Initialize port pins
 	initActuators();
 	timer_init();
-	gear_indication();
+	gear_indication();						  //Initialize gear to '1' on LEDs and LCD
 	ign_cut = 0;
+
+	spi_init();
+	can_init(CAN_BITRATE_250);
+	spi_set_mode (UCCKPH, 0, 5);			//need this????
 
   for(;;) //1 kHz loop
   {
