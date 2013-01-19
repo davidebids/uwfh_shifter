@@ -65,6 +65,12 @@ void main(void)
 	char GEAR[1] = {'0'};
 	unsigned int i;
 	
+	char BLANK_RPM [5] = {'9','9','9','9','9'};
+	char BLANK_CUR [3] = {'9','9','9'};
+	char BLANK_VOLT [4] = {'9','9','9','9'};
+	char BLANK_TEMP [2] = {'9','9'};
+	char BLANK_GEAR [1] = {'9'};
+
 	unsigned int a;
 
 	WDTCTL = WDTPW + WDTHOLD;                 // Stop WDT
@@ -105,7 +111,7 @@ void main(void)
   				a = can.data.data_u16[1];
   				itoa ( a, TEMP, 10 );
 
-  				//need to convert other data fields? - CUR, REG, GEAR, etc.?
+  				//need to convert other data fields! - CUR, REG, GEAR, etc.
 
   				uart_transmit_string ( RPM, 5 );
   				uart_transmit(',');
@@ -121,20 +127,25 @@ void main(void)
   				//uart_transmit('\n');
   				//uart_transmit_string ( GEAR, 1 );		//need this field because the LCD is expecting it?
   				//uart_transmit(',');
+  				uart_transmit(',');
+  				uart_transmit_string (BLANK_GEAR, 1);
   			}
 
   			if( can.address == (SCU_S1_CAN_BASE+SCU_GEAR) )
   			{
-  				/*uart_transmit_string ( RPM, 5 );
+  				a = can.data.data_u16[0];
+  				itoa ( a, GEAR, 10 );
+
+  				uart_transmit_string ( BLANK_RPM, 5 );
   				uart_transmit(',');
-  				uart_transmit_string ( CUR, 3 );
+  				uart_transmit_string ( BLANK_CUR, 3 );
   				uart_transmit(',');
-  				uart_transmit_string ( REG, 3 );
+  				uart_transmit_string ( BLANK_CUR, 3 );
   				uart_transmit(',');
-  				uart_transmit_string ( VOLT, 4 );
+  				uart_transmit_string ( BLANK_VOLT, 4 );
   				uart_transmit(',');
-  				uart_transmit_string ( TEMP, 2 );
-  				uart_transmit(',');*/					//need this values because the LCD is expecting a full string buffer?
+  				uart_transmit_string ( BLANK_TEMP, 2 );
+  				uart_transmit(',');
   				uart_transmit_string ( GEAR, 1 );
   			}
   		}
