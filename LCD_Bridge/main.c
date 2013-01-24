@@ -124,11 +124,9 @@ void main(void)
   				//uart_transmit('0');
   				//uart_transmit('0');
   				uart_transmit_string ( TEMP, 2 );
-  				//uart_transmit('\n');
-  				//uart_transmit_string ( GEAR, 1 );		//need this field because the LCD is expecting it?
-  				//uart_transmit(',');
   				uart_transmit(',');
   				uart_transmit_string (BLANK_GEAR, 1);
+  				//uart_transmit('\n');
   			}
 
   			if( can.address == (SCU_S1_CAN_BASE+SCU_GEAR) )
