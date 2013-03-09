@@ -27,14 +27,14 @@
 //Variable Declarations
 //
 float shift_posn, clutch_posn, paddle_val, temp;
-float up_posn = 952; //Position in fraction of volts
-float down_posn = 69; //Position in fraction of volts
-float rest_posn = 532; //Position in fraction of volts
-float neutral_posn = 740; //Position in fraction of volts
-float shift_half = 230; //Position in fraction of volts
-float clutch_retract = 385; //Position in fraction of volts
-float clutch_half = 193; //Position in fraction of volts
-float clutch_extend = 0; //Position in fraction of volts
+float up_posn = 20; //Position in fraction of volts
+float down_posn = 430; //Position in fraction of volts
+float rest_posn = 220; //Position in fraction of volts
+float neutral_posn = 110; //Position in fraction of volts - for upshifting into neutral
+float shift_half = 330; //Position in fraction of volts - for downshifting into neutral
+float clutch_retract = 385; //Position in fraction of volts --fix
+float clutch_half = 193; //Position in fraction of volts --fix
+float clutch_extend = 0; //Position in fraction of volts --fix
 unsigned char clutch_state, shift_state, prev_state, ign_cut, gear_status, in_neutral;
 unsigned int gear_num;
 
@@ -63,6 +63,20 @@ void initPortPins(void)
 	P2DIR = PIN3 + PIN4 + PIN5;
 	P3DIR = PIN0;
 	P4DIR = PIN7;
+
+	//Shifter PWM Low
+	P3OUT &= ~PIN0;
+}
+
+void clutch_pwm (void)
+{
+	  P2DIR |= BIT3;
+	  P2SEL |= BIT3;
+
+	  TACCR0 = 512-1;                             // PWM Period/2
+	  TACCTL1 = OUTMOD_7;                       // TACCR1 toggle/set
+	  TACCR1 = 128;                              // TACCR1 PWM duty cycle
+	  TACTL = TASSEL_2 + MC_1;                  // SMCLK, up mode
 }
 
 float readADC(int channel)
@@ -144,34 +158,34 @@ void actuate_clutch(void)
 
 	if (clutch_state == 1) {
 		while (clutch_posn < clutch_half) {
-			P2OUT &= ~PIN3; //DIR
-			P2OUT |= PIN5; //PWMH
+			P2OUT &= ~PIN5; //DIR
+			P2OUT |= PIN3; //PWMH
 
 			clutch_posn = readADC(15);
 		}
 
-		P2OUT &= ~PIN5;
+		P2OUT &= ~PIN3;
 	}
 	else if (clutch_state == 0) {
 		while (clutch_posn > clutch_extend) {
-			P2OUT |= PIN3; //DIR
-			P2OUT |= PIN5; //PWMH
+			P2OUT |= PIN5; //DIR
+			P2OUT |= PIN3; //PWMH
 
 			clutch_posn = readADC(15);
 		}
 
-		P2OUT |= PIN3; //DIR
-		P2OUT |= PIN5; //PWMH
+		P2OUT |= PIN5; //DIR
+		P2OUT |= PIN3; //PWMH
 	}
 }
 
 void ignition_cut (void) //P2.1
 {
 	if (ign_cut == 1) {
-		P4OUT |= PIN7;			//turn on LED
+		P4OUT |= PIN7;			//start spark cut signal
 	}
 	else if (ign_cut == 0) {
-		P4OUT &= ~PIN7;			//turn off LED
+		P4OUT &= ~PIN7;			//end spark cut signal
 	}
 }
 
@@ -208,110 +222,7 @@ void shift_gear (void)
 
 	if (gear_status == 1) {
 		if (in_neutral == 1) {
-			while (shift_posn < neutral_posn) {
-				P2OUT |= PIN4; //DIR
-				P3OUT |= PIN0; //PWMH
-
-				shift_posn = readADC(14);
-			}
-
-			P3OUT &= ~PIN0;
-
-			while (shift_posn > rest_posn) {
-				P2OUT &= ~PIN4; //DIR
-				P3OUT |= PIN0; //PWMH
-
-				shift_posn = readADC(14);
-			}
-
-			P3OUT &= ~PIN0;
-			in_neutral = 0;
-		}
-		else if (in_neutral == 0)
-		{
-			if (in_neutral != 1) {
-				ign_cut = 1;
-				ignition_cut();
-			}
-
-			while (shift_posn < up_posn) {
-				P2OUT |= PIN4; //DIR
-				P3OUT |= PIN0; //PWMH
-
-				shift_posn = readADC(14);
-			}
-
-			P3OUT &= ~PIN0;
-
-			if (in_neutral != 1) {
-				ign_cut = 0;
-				ignition_cut();
-			}
-
-			while (shift_posn > rest_posn) {
-				P2OUT &= ~PIN4; //DIR
-				P3OUT |= PIN0; //PWMH
-
-				shift_posn = readADC(14);
-			}
-
-			P3OUT &= ~PIN0;
-		}
-	}
-	else if (gear_status == 2) {
-		clutch_state = 1;
-		actuate_clutch();
-
-		while (shift_posn > down_posn) {
-			P2OUT &= ~PIN4; //DIR
-			P3OUT |= PIN0; //PWMH
-
-			shift_posn = readADC(14);
-		}
-
-		P3OUT &= ~PIN0;
-
-		while (shift_posn < rest_posn) {
-			P2OUT |= PIN4; //DIR
-			P3OUT |= PIN0; //PWMH
-
-			shift_posn = readADC(14);
-		}
-
-		P3OUT &= ~PIN0;
-
-		clutch_state = 0;
-		actuate_clutch();
-	}
-	else if (gear_status == 3) {
-		shift_posn = readADC(14);
-
-		if (gear_num == 1 && in_neutral != 1)
-		{
-			while (shift_posn < neutral_posn) {
-				P2OUT |= PIN4; //DIR
-				P3OUT |= PIN0; //PWMH
-
-				shift_posn = readADC(14);
-			}
-
-			P3OUT &= ~PIN0;
-
-			while (shift_posn > rest_posn) {
-				P2OUT &= ~PIN4; //DIR
-				P3OUT |= PIN0; //PWMH
-
-				shift_posn = readADC(14);
-			}
-
-			P3OUT &= ~PIN0;
-		}
-		else if (gear_num == 2 && in_neutral != 1)
-		{
-			clutch_state = 1;
-			actuate_clutch();
-
-			while (shift_posn > shift_half) {
+			while (shift_posn > neutral_posn) {
 				P2OUT &= ~PIN4; //DIR
 				P3OUT |= PIN0; //PWMH
 
@@ -328,9 +239,126 @@ void shift_gear (void)
 			}
 
 			P3OUT &= ~PIN0;
+			in_neutral = 0;
+		}
+		else if (in_neutral == 0)
+		{
+			if (in_neutral != 1) {
+				ign_cut = 1;
+				ignition_cut();
+			}
+
+			while (shift_posn > up_posn) {
+				P2OUT &= ~PIN4; //DIR
+				P3OUT |= PIN0; //PWMH
+
+				shift_posn = readADC(14);
+			}
+
+			P3OUT &= ~PIN0;
+
+			if (in_neutral != 1) {
+				ign_cut = 0;
+				ignition_cut();
+			}
+
+			while (shift_posn < rest_posn) {
+				P2OUT |= PIN4; //DIR
+				P3OUT |= PIN0; //PWMH
+
+				shift_posn = readADC(14);
+			}
+
+			P3OUT &= ~PIN0;
+		}
+	}
+	else if (gear_status == 2) {
+		clutch_state = 1;
+		//actuate_clutch();
+
+		while (shift_posn < down_posn) {
+			P2OUT |= PIN4; //DIR
+			P3OUT |= PIN0; //PWMH
+
+			shift_posn = readADC(14);
+		}
+
+		/*while (shift_posn > down_posn && clutch_posn < clutch_extend) {
+			//shifter
+			P2OUT &= ~PIN4; //DIR
+			P3OUT |= PIN0; //PWMH
+
+			shift_posn = readADC(14);
+
+			//clutch
+			P2OUT &= ~PIN5; //DIR
+			P2OUT |= PIN3; //PWMH
+
+			clutch_posn = readADC(15);
+		}*/
+
+		P3OUT &= ~PIN0;
+
+		while (shift_posn > rest_posn) {
+			P2OUT &= ~PIN4; //DIR
+			P3OUT |= PIN0; //PWMH
+
+			shift_posn = readADC(14);
+		}
+
+		P3OUT &= ~PIN0;
+
+		clutch_state = 0;
+		//actuate_clutch();
+	}
+	else if (gear_status == 3) {
+		shift_posn = readADC(14);
+
+		if (gear_num == 1 && in_neutral != 1)
+		{
+			while (shift_posn > neutral_posn) {
+				P2OUT &= ~PIN4; //DIR
+				P3OUT |= PIN0; //PWMH
+
+				shift_posn = readADC(14);
+			}
+
+			P3OUT &= ~PIN0;
+
+			while (shift_posn < rest_posn) {
+				P2OUT |= PIN4; //DIR
+				P3OUT |= PIN0; //PWMH
+
+				shift_posn = readADC(14);
+			}
+
+			P3OUT &= ~PIN0;
+		}
+		else if (gear_num == 2 && in_neutral != 1)
+		{
+			clutch_state = 1;
+			//actuate_clutch();
+
+			while (shift_posn < shift_half) {
+				P2OUT |= PIN4; //DIR
+				P3OUT |= PIN0; //PWMH
+
+				shift_posn = readADC(14);
+			}
+
+			P3OUT &= ~PIN0;
+
+			while (shift_posn > rest_posn) {
+				P2OUT &= ~PIN4; //DIR
+				P3OUT |= PIN0; //PWMH
+
+				shift_posn = readADC(14);
+			}
+
+			P3OUT &= ~PIN0;
 
 			clutch_state = 0;
-			actuate_clutch();
+			//actuate_clutch();
 		}
 
 		in_neutral = 1;
@@ -346,7 +374,9 @@ void main(void)
 
 	WDTCTL = WDTPW + WDTHOLD;                 // Stop WDT
 
-	//Delay to allow 3.3V rail to fully rise, essential for CAN part
+	clutch_pwm();
+
+	//Delay to allow 3.3lV rail to fully rise, essential for CAN part
 	//because MSP430 will turn on at 1.8V or less
 	//Especially if 3.3V voltage supervisor is not installed!
 	for(i=0; i<65000; i++)
@@ -356,13 +386,13 @@ void main(void)
 	__enable_interrupt();                     // Enable interrupts
 
 	initPortPins();                           // Initialize port pins
-	initActuators();
+	//initActuators();
 	timer_init();
 	gear_indication();
 	ign_cut = 0;
 
-	spi_init();
-	can_init(CAN_BITRATE_250);
+	//spi_init();
+	//can_init(CAN_BITRATE_250);
 	//spi_set_mode (UCCKPH, 0, 5);			//need this????
 
   for(;;) //1 kHz loop
@@ -378,7 +408,7 @@ void main(void)
 	//can_write_vcell (BATT_S1, cv_stk2);
 
 	//Read in first value for clutch paddle
-	paddle_val = readADC(13);
+	//paddle_val = readADC(13);
 
     if (shift_state == STATE_IDLE)
     {
@@ -479,14 +509,14 @@ void main(void)
 
 		while (clutch_posn != temp) {
 			if (temp >= clutch_posn) {
-				P2OUT &= ~PIN3; //DIR
+				P2OUT &= ~PIN5; //DIR
 			}
 			else if (temp < clutch_posn)
 			{
-				P2OUT |= PIN3; //DIR
+				P2OUT |= PIN5; //DIR
 			}
 
-			P2OUT |= PIN5; //PWMH
+			P2OUT |= PIN3; //PWMH
 
 			clutch_posn = readADC(15);
 			paddle_val = readADC(13);
@@ -495,7 +525,7 @@ void main(void)
 
 			if (temp + 5 > clutch_posn && temp - 5 < clutch_posn) {
 				while (temp + 115 > clutch_posn && temp - 115 < clutch_posn) {
-					P2OUT &= ~PIN5;
+					P2OUT &= ~PIN3;
 
 					clutch_posn = readADC(15);
 					paddle_val = readADC(13);
@@ -505,7 +535,7 @@ void main(void)
 			}
 
 			if (paddle_val < 375) {
-				P2OUT |= PIN5; //PWMH
+				P2OUT |= PIN3; //PWMH
 				break;
 			}
 
@@ -513,21 +543,20 @@ void main(void)
 
     	shift_state = STATE_IDLE;
     }
-  //else - what - throw exception, reset? -- display N/A as gear indication, cause driver to downshift a bunch of times to reset to first gear -- used for when the car shuts off eg. from BRB
   }
 }
 
 // Timer Interrupt Service Routine
-#pragma vector=TIMERA0_VECTOR
-__interrupt void Timer_A (void)
+#pragma vector=TIMERB0_VECTOR
+__interrupt void Timer_B (void)
 {
   LPM0_EXIT;
 }
 
-// Initialize TimerA to wake up processor at 2kHz
+// Initialize TimerB to wake up processor at 2kHz
 void timer_init(void)
 {
   CCR0 = 1483;
-  TACTL = TASSEL_2 + ID_3 + MC_1;                  // SMCLK, upmode
+  TBCTL = TBSSEL_2 + ID_3 + MC_1;                  // SMCLK, upmode
   CCTL0 = CCIE;                             // CCR0 interrupt enabled
 }
