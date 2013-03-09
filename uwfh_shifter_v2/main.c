@@ -56,7 +56,7 @@ void initPortPins(void)
 	//Set Initial Values
 	P1OUT = 0;
 	P2OUT = 0;
-	P3OUT = 0;
+	P3OUT = 0; //?
 	P4OUT = 0;
 
 	//Digital Outputs
@@ -65,6 +65,7 @@ void initPortPins(void)
 	P4DIR = PIN7;
 
 	//Shifter PWM Low
+	P3REN &= ~PIN0; //?
 	P3OUT &= ~PIN0;
 }
 
