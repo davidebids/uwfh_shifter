@@ -26,18 +26,21 @@
 //
 //Variable Declarations
 //
-float shift_posn, clutch_posn, paddle_val, temp;
+float shift_posn, temp;
 float up_posn = 20; //Position in fraction of volts
 float down_posn = 430; //Position in fraction of volts
 float rest_posn = 220; //Position in fraction of volts
 float neutral_posn = 110; //Position in fraction of volts - for upshifting into neutral
 float shift_half = 330; //Position in fraction of volts - for downshifting into neutral
-float clutch_retract = 385; //Position in fraction of volts --fix
-float clutch_half = 193; //Position in fraction of volts --fix
-float clutch_extend = 0; //Position in fraction of volts --fix
+float paddle_rest_posn = 335; //Position in fraction of volts
 unsigned char clutch_state, shift_state, prev_state, ign_cut, gear_status, in_neutral;
 unsigned int gear_num;
-float percent_pwm, prev_sample, controller_output;
+
+float clutch_posn, in_sample, controller_output, paddle_val;
+float upper_limit = 800;
+float lower_limit = 462;
+float ref_posn, m, b;
+float prev_in_sample, out_sample, prev_out_sample; //rads, volts, volts
 
 unsigned int gear_stk1[1*1];
 
@@ -48,6 +51,7 @@ unsigned int cv_stk2[3*10];
 // Function Declarations
 //
 void timer_init(void);
+void actuate_clutch(void);
 
 //
 // Initialize port pins
@@ -71,21 +75,51 @@ void pwm_config (void)
 	  P2DIR |= BIT3;
 	  P2SEL |= BIT3;
 
-	 /* TACCR0 = 512-1;                             // PWM Period/2
+	  TACCR0 = 512-1;                             // PWM Period/2
 	  TACCTL1 = OUTMOD_7;                       // TACCR1 toggle/set
-	  TACCR1 = 0; //128;                              // TACCR1 PWM duty cycle
-	  TACTL = TASSEL_2 + MC_1;                  // SMCLK, up mode*/
+	  TACCR1 = 0;                              // TACCR1 PWM duty cycle
+	  TACTL = TASSEL_2 + MC_1;                  // SMCLK, up mode, 12MHz
 }
 
-void clutch_pwm (float value)
+void clutch_pwm (void)
 {
-	TACCR0 = 512-1;                             // PWM Period/2
-	TACCTL1 = OUTMOD_7;                       // TACCR1 toggle/set
-	TACCR1 = 0; //128;                              // TACCR1 PWM duty cycle
-	TACTL = TASSEL_2 + MC_1;                  // SMCLK, up mode*/
+	if (ref_posn > upper_limit)
+	{
+		ref_posn = upper_limit;
+	}
+	else if (ref_posn < lower_limit)
+	{
+		ref_posn = lower_limit;
+	}
 
-	percent_pwm = controller_output/12;
-	TACCR1 = 512*percent_pwm;
+	in_sample = (ref_posn - clutch_posn)/217.3; //rads
+
+	out_sample = 0.985766901310270*prev_out_sample + 7.882180794557980*in_sample - 7.735594428311607*prev_in_sample; //volts
+
+	if (out_sample > 0)
+	{
+		P2OUT |= BIT5; //DIR ccw
+		controller_output = out_sample;
+	}
+	else if (out_sample < 0)
+	{
+		P2OUT &= ~BIT5; //DIR
+		controller_output = out_sample*-1;
+	}
+
+	if (controller_output > 12)
+	{
+		controller_output = 12;
+	}
+	else if (controller_output < -12)
+	{
+		controller_output = -12;
+	}
+
+	prev_out_sample = out_sample;
+	prev_in_sample = in_sample;
+
+	__delay_cycles(12000);
 }
 
 float readADC(int channel)
@@ -132,6 +166,9 @@ float readADC(int channel)
 
 void initActuators(void)
 {
+	clutch_state = 0;
+	actuate_clutch();
+
 	shift_posn = readADC(14);
 
 	if (shift_posn < rest_posn) {
@@ -160,31 +197,38 @@ void clock_init (void)
 	BCSCTL1 = CALBC1_12MHZ;
 }
 
-//Clutch actuation method
+//Clutch actuation method, clutch_state = 1 - full disengage, clutch_state = 0 - full engage
 void actuate_clutch(void)
 {
-	clutch_posn = readADC(15);
-
 	if (clutch_state == 1) {
-		while (clutch_posn < clutch_half) {
-			P2OUT &= ~PIN5; //DIR
-			P2OUT |= PIN3; //PWMH
+		ref_posn = upper_limit;
 
+		for (;;)
+		{
 			clutch_posn = readADC(15);
-		}
+			clutch_pwm();
+			TACCR1 = (controller_output/12)*512;
 
-		P2OUT &= ~PIN3;
+			if (clutch_posn < ref_posn - 20)
+			{
+				break;
+			}
+		}
 	}
 	else if (clutch_state == 0) {
-		while (clutch_posn > clutch_extend) {
-			P2OUT |= PIN5; //DIR
-			P2OUT |= PIN3; //PWMH
+		ref_posn = lower_limit;
 
+		for (;;)
+		{
 			clutch_posn = readADC(15);
-		}
+			clutch_pwm();
+			TACCR1 = (controller_output/12)*512;
 
-		P2OUT |= PIN5; //DIR
-		P2OUT |= PIN3; //PWMH
+			if (clutch_posn < ref_posn + 20)
+			{
+				break;
+			}
+		}
 	}
 }
 
@@ -283,42 +327,36 @@ void shift_gear (void)
 	}
 	else if (gear_status == 2) {
 		clutch_state = 1;
-		//actuate_clutch();
+		actuate_clutch();
 
-		while (shift_posn < down_posn) {
+		while (shift_posn < down_posn)
+		{
+			clutch_posn = readADC(15);
+			clutch_pwm();
+			TACCR1 = (controller_output/12)*512;
+
 			P2OUT |= PIN4; //DIR
 			P3OUT |= PIN0; //PWMH
-
 			shift_posn = readADC(14);
 		}
 
-		/*while (shift_posn > down_posn && clutch_posn < clutch_extend) {
-			//shifter
-			P2OUT &= ~PIN4; //DIR
-			P3OUT |= PIN0; //PWMH
-
-			shift_posn = readADC(14);
-
-			//clutch
-			P2OUT &= ~PIN5; //DIR
-			P2OUT |= PIN3; //PWMH
-
-			clutch_posn = readADC(15);
-		}*/
-
 		P3OUT &= ~PIN0;
 
-		while (shift_posn > rest_posn) {
+		while (shift_posn > rest_posn)
+		{
+			clutch_posn = readADC(15);
+			clutch_pwm();
+			TACCR1 = (controller_output/12)*512;
+
 			P2OUT &= ~PIN4; //DIR
 			P3OUT |= PIN0; //PWMH
-
 			shift_posn = readADC(14);
 		}
 
 		P3OUT &= ~PIN0;
 
 		clutch_state = 0;
-		//actuate_clutch();
+		actuate_clutch();
 	}
 	else if (gear_status == 3) {
 		shift_posn = readADC(14);
@@ -346,9 +384,13 @@ void shift_gear (void)
 		else if (gear_num == 2 && in_neutral != 1)
 		{
 			clutch_state = 1;
-			//actuate_clutch();
+			actuate_clutch();
 
 			while (shift_posn < shift_half) {
+				clutch_posn = readADC(15);
+				clutch_pwm();
+				TACCR1 = (controller_output/12)*512;
+
 				P2OUT |= PIN4; //DIR
 				P3OUT |= PIN0; //PWMH
 
@@ -358,6 +400,10 @@ void shift_gear (void)
 			P3OUT &= ~PIN0;
 
 			while (shift_posn > rest_posn) {
+				clutch_posn = readADC(15);
+				clutch_pwm();
+				TACCR1 = (controller_output/12)*512;
+
 				P2OUT &= ~PIN4; //DIR
 				P3OUT |= PIN0; //PWMH
 
@@ -367,7 +413,7 @@ void shift_gear (void)
 			P3OUT &= ~PIN0;
 
 			clutch_state = 0;
-			//actuate_clutch();
+			actuate_clutch();
 		}
 
 		in_neutral = 1;
@@ -378,12 +424,11 @@ void main(void)
 {
 	unsigned int i;
 	gear_num = 1;
+	controller_output = 0;
 	shift_state = STATE_IDLE;
 	prev_state = STATE_IDLE;
 
 	WDTCTL = WDTPW + WDTHOLD;                 // Stop WDT
-
-	pwm_config();
 
 	//Delay to allow 3.3lV rail to fully rise, essential for CAN part
 	//because MSP430 will turn on at 1.8V or less
@@ -395,9 +440,11 @@ void main(void)
 	__enable_interrupt();                     // Enable interrupts
 
 	initPortPins();                           // Initialize port pins
+	pwm_config();
 	initActuators();
-	timer_init();
+	//timer_init();
 	gear_indication();
+	TACCR1 = (controller_output/12)*512;	  // Initial PWM value of 0
 	ign_cut = 0;
 
 	//spi_init();
@@ -417,7 +464,7 @@ void main(void)
 	//can_write_vcell (BATT_S1, cv_stk2);
 
 	//Read in first value for clutch paddle
-	//paddle_val = readADC(13);
+	paddle_val = readADC(13);
 
     if (shift_state == STATE_IDLE)
     {
@@ -437,11 +484,12 @@ void main(void)
     	{
     		shift_state = STATE_GEAR_CHECK;
     	}
-    	else if (paddle_val > 375)
+    	else if (paddle_val > paddle_rest_posn)
     	{
 			shift_state = STATE_CLUTCH_PADDLE;
     	}
 
+    	TACCR1 = 0;
     	prev_state = STATE_IDLE;
     }
     else if (shift_state == STATE_UPSHIFT)
@@ -514,41 +562,24 @@ void main(void)
     }
     else if (shift_state == STATE_CLUTCH_PADDLE)
     {
-    	temp = ((paddle_val - 375) / (495 - 375)) * 385;
+    	m = (upper_limit - lower_limit)/146;
+    	b = lower_limit - (m*327);
 
-		while (clutch_posn != temp) {
-			if (temp >= clutch_posn) {
-				P2OUT &= ~PIN5; //DIR
-			}
-			else if (temp < clutch_posn)
-			{
-				P2OUT |= PIN5; //DIR
-			}
+    	for (;;)
+    	{
+    		paddle_val = readADC(13);
 
-			P2OUT |= PIN3; //PWMH
+			ref_posn = m*paddle_val + b;
 
+			TACCR1 = (controller_output/12)*512;
 			clutch_posn = readADC(15);
-			paddle_val = readADC(13);
+			clutch_pwm();
 
-			temp = ((paddle_val - 375) / (495 - 375)) * 385;
-
-			if (temp + 5 > clutch_posn && temp - 5 < clutch_posn) {
-				while (temp + 115 > clutch_posn && temp - 115 < clutch_posn) {
-					P2OUT &= ~PIN3;
-
-					clutch_posn = readADC(15);
-					paddle_val = readADC(13);
-
-					temp = ((paddle_val - 375) / (495 - 375)) * 385;
-				}
-			}
-
-			if (paddle_val < 375) {
-				P2OUT |= PIN3; //PWMH
+			if (paddle_val < paddle_rest_posn && clutch_posn < lower_limit + 20)
+			{
 				break;
 			}
-
-		}
+    	}
 
     	shift_state = STATE_IDLE;
     }
@@ -561,14 +592,6 @@ __interrupt void Timer_B (void)
 {
   LPM0_EXIT;
 }
-
-/*// Timer Interrupt Service Routine
-#pragma vector=TIMERA0_VECTOR
-__interrupt void Timer_A (void)
-{
-	percent_pwm = controller_output/12;
-	TACCR1 = 512*percent_pwm;
-}*/
 
 // Initialize TimerB to wake up processor at 2kHz
 void timer_init(void)
