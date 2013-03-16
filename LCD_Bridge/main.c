@@ -62,6 +62,7 @@ void main(void)
 	char REG[3] = {'0','0','0'};
 	char VOLT[4] = {'0','0','0','0'};
 	char TEMP[2] = {'0','0'};
+	char SPEED[3] = {'0', '0', '0'};
 	char GEAR[1] = {'0'};
 	unsigned int i;
 	
@@ -69,6 +70,7 @@ void main(void)
 	char BLANK_CUR [3] = {'9','9','9'};
 	char BLANK_VOLT [4] = {'9','9','9','9'};
 	char BLANK_TEMP [2] = {'9','9'};
+	char BLANK_SPEED [3] = {'9', '9', '9'};
 	char BLANK_GEAR [1] = {'9'};
 
 	unsigned int a;
@@ -125,6 +127,8 @@ void main(void)
   				//uart_transmit('0');
   				uart_transmit_string ( TEMP, 2 );
   				uart_transmit(',');
+  				uart_transmit_string ( SPEED, 3 );
+  				uart_transmit(',');
   				uart_transmit_string (BLANK_GEAR, 1);
   				//uart_transmit('\n');
   			}
@@ -143,6 +147,8 @@ void main(void)
   				uart_transmit_string ( BLANK_VOLT, 4 );
   				uart_transmit(',');
   				uart_transmit_string ( BLANK_TEMP, 2 );
+  				uart_transmit(',');
+  				uart_transmit_string ( BLANK_SPEED, 3 );
   				uart_transmit(',');
   				uart_transmit_string ( GEAR, 1 );
   			}
