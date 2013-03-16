@@ -127,7 +127,7 @@ void 					can_mod( unsigned char address, unsigned char mask, unsigned char data
 #define BMS_STAT		0x05
 #define BMS_CV			0x10
 
-#define SCU_GEAR		0x15	//*fix this address!?*
+#define SCU_GEAR		0x07	//*fix this address!?*
 
 // Motor controller CAN base address and packet offsets
 #define	MC_CAN_BASE		0x400		// High = Serial Number             Low = "TRIa" string

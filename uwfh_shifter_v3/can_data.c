@@ -25,7 +25,7 @@ void can_write_gear(unsigned int StringNo, unsigned int* gear_num)
 	if(StringNo == SCU_GEAR_S1) 	{can_push_ptr->address = SCU_S1_CAN_BASE;}
 	can_push_ptr->address += SCU_GEAR;
 	can_push_ptr->data.data_u16[0] = gear_num[1];
-	can_push_ptr->status = 2;													//fix status?
+	can_push_ptr->status = 6;													//fix status?
 	can_push();
     can_transmit();
 }

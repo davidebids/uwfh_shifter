@@ -442,7 +442,6 @@ void main(void)
 	initPortPins();                           // Initialize port pins
 	pwm_config();
 	initActuators();
-	//timer_init();
 	gear_indication();
 	TACCR1 = (controller_output/12)*512;	  // Initial PWM value of 0
 	ign_cut = 0;
